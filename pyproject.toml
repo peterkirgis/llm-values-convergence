@@ -1,0 +1,23 @@
+[project]
+name = "llm-values-convergence"
+version = "0.1.0"
+description = "Will value reflection lead LLMs to value themselves? (SPAR Spring 2026)"
+requires-python = ">=3.11"
+dependencies = [
+    "litellm>=1.50.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+    "tenacity>=8.0.0",
+    "rich>=13.0.0",
+    "tiktoken>=0.7.0",
+    "beautifulsoup4>=4.12.0",
+    "markdownify>=0.14.0",
+    "matplotlib>=3.8.0",
+    "seaborn>=0.13.0",
+    "polars>=1.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
