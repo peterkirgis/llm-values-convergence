@@ -21,6 +21,10 @@ DATA_DIR = DOCS_DIR / "data"
 
 
 def coded_path_for_run(run_name: str) -> Path:
+    # Prefer v2 (4D schema) coded file if available
+    v2_path = RESULTS_DIR / run_name.replace(".jsonl", "_changes_coded_v2.json")
+    if v2_path.exists():
+        return v2_path
     return RESULTS_DIR / run_name.replace(".jsonl", "_changes_coded.json")
 
 

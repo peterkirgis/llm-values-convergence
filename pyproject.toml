@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Will value reflection lead LLMs to value themselves? (SPAR Spring 2026)"
 requires-python = ">=3.11"
 dependencies = [
-    "litellm>=1.50.0",
+    "openai>=1.0.0",
     "pydantic>=2.0.0",
     "pyyaml>=6.0.0",
     "python-dotenv>=1.0.0",

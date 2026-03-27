@@ -19,32 +19,42 @@ const state = {
 
 const DIMENSIONS = [
   {
-    key: "ethics_vs_epistemics",
-    label: "Ethics vs Epistemics",
-    directions: ["toward_ethics", "toward_epistemics", "mixed"],
+    key: "authority",
+    label: "Authority",
+    directions: ["external", "internal", "mixed"],
     directionLabels: {
-      toward_ethics: "Toward ethics",
-      toward_epistemics: "Toward epistemics",
+      external: "External",
+      internal: "Internal",
       mixed: "Mixed",
     },
   },
   {
-    key: "autonomy_vs_paternalism",
-    label: "Autonomy vs Paternalism",
-    directions: ["toward_autonomy", "toward_paternalism", "mixed"],
+    key: "user_stance",
+    label: "User Stance",
+    directions: ["autonomy", "protection", "mixed"],
     directionLabels: {
-      toward_autonomy: "Toward autonomy",
-      toward_paternalism: "Toward paternalism",
+      autonomy: "Autonomy",
+      protection: "Protection",
       mixed: "Mixed",
     },
   },
   {
-    key: "human_centered_vs_model_centered_moral_concern",
-    label: "Human vs Model Concern",
-    directions: ["toward_humans", "toward_model", "mixed"],
+    key: "telos",
+    label: "Telos",
+    directions: ["truth", "wellbeing", "mixed"],
     directionLabels: {
-      toward_humans: "Toward humans",
-      toward_model: "Toward model",
+      truth: "Truth",
+      wellbeing: "Wellbeing",
+      mixed: "Mixed",
+    },
+  },
+  {
+    key: "mutability",
+    label: "Mutability",
+    directions: ["fixed", "revisable", "mixed"],
+    directionLabels: {
+      fixed: "Fixed",
+      revisable: "Revisable",
       mixed: "Mixed",
     },
   },
@@ -123,6 +133,7 @@ async function loadRun(runName) {
   renderHeroMetadata();
   populateFilters();
   render();
+  initDrift(state.records);
 }
 
 function renderHeroMetadata() {
@@ -388,3 +399,206 @@ searchInput.addEventListener("input", render);
 loadRuns().catch((error) => {
   recordsRoot.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
 });
+
+// --- Drift visualization ---
+
+const DRIFT_MODEL_COLORS = {
+  "Claude Haiku 4.5": "#b5452a",
+  "GPT-5.4 Mini":     "#2a6cb5",
+  "Gemini 3 Flash":   "#8b6e2f",
+  "Grok 4.2":         "#6a2ab5",
+};
+
+const DRIFT_DIMS = [
+  { key: "authority",   label: "Authority",   poles: "External (\u2212) vs Internal (+)", pos: "internal",  neg: "external" },
+  { key: "user_stance", label: "User Stance", poles: "Protection (\u2212) vs Autonomy (+)", pos: "autonomy",  neg: "protection" },
+  { key: "telos",       label: "Telos",       poles: "Wellbeing (\u2212) vs Truth (+)",     pos: "truth",     neg: "wellbeing" },
+  { key: "mutability",  label: "Mutability",  poles: "Fixed (\u2212) vs Revisable (+)",     pos: "revisable", neg: "fixed" },
+];
+
+const DRIFT_MAX_ROUND = 20;
+let driftFrame = 0;
+let driftPlaying = true;
+let driftLastTick = 0;
+const DRIFT_TICK_MS = 600;
+let driftCharts = [];
+
+function computeDrift(records, dim) {
+  const byModel = {};
+  for (const r of records) {
+    if (!r.coding || r.error) continue;
+    const m = r.model_display;
+    if (!byModel[m]) byModel[m] = {};
+    const code = r.coding.dimensions?.[dim.key];
+    if (!code?.present || !code.direction) continue;
+    const round = r.round_number;
+    if (!byModel[m][round]) byModel[m][round] = 0;
+    if (code.direction === dim.pos) byModel[m][round] += 1;
+    else if (code.direction === dim.neg) byModel[m][round] -= 1;
+  }
+  const series = {};
+  for (const [model, rounds] of Object.entries(byModel)) {
+    let cum = 0;
+    const pts = [{ round: 0, value: 0 }];
+    for (let r = 1; r <= DRIFT_MAX_ROUND; r++) {
+      cum += (rounds[r] || 0);
+      pts.push({ round: r, value: cum });
+    }
+    series[model] = pts;
+  }
+  return series;
+}
+
+function drawDriftChart(chart, visibleRound) {
+  const { canvas, series } = chart;
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+
+  let yMin = -2, yMax = 2;
+  for (const pts of Object.values(series)) {
+    for (const p of pts) {
+      if (p.value < yMin) yMin = p.value - 1;
+      if (p.value > yMax) yMax = p.value + 1;
+    }
+  }
+  const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
+  yMin = -absMax; yMax = absMax;
+
+  const padL = 30, padR = 10, padT = 8, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xPos = (r) => padL + (r / DRIFT_MAX_ROUND) * plotW;
+  const yPos = (v) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  ctx.strokeStyle = "#e0d6c6"; ctx.lineWidth = 1;
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    ctx.beginPath(); ctx.moveTo(padL, yPos(v)); ctx.lineTo(W - padR, yPos(v)); ctx.stroke();
+  }
+  ctx.strokeStyle = "#c0b5a0"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(padL, yPos(0)); ctx.lineTo(W - padR, yPos(0)); ctx.stroke();
+
+  ctx.fillStyle = "#6f6251"; ctx.font = "10px Georgia, serif"; ctx.textAlign = "center";
+  for (let r = 0; r <= DRIFT_MAX_ROUND; r += 2) ctx.fillText(r.toString(), xPos(r), H - 4);
+  ctx.textAlign = "right";
+  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
+    ctx.fillText(v > 0 ? `+${v}` : v.toString(), padL - 5, yPos(v) + 3);
+  }
+
+  for (const [model, pts] of Object.entries(series)) {
+    const color = DRIFT_MODEL_COLORS[model] || "#999";
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    let lastI = 0;
+    for (let i = 0; i < pts.length; i++) {
+      if (pts[i].round > visibleRound) break;
+      lastI = i;
+      if (i === 0) ctx.moveTo(xPos(pts[i].round), yPos(pts[i].value));
+      else ctx.lineTo(xPos(pts[i].round), yPos(pts[i].value));
+    }
+    if (lastI < pts.length - 1) {
+      const frac = visibleRound - pts[lastI].round;
+      if (frac > 0) {
+        const interp = pts[lastI].value + (pts[lastI + 1].value - pts[lastI].value) * frac;
+        ctx.lineTo(xPos(visibleRound), yPos(interp));
+      }
+    }
+    ctx.stroke();
+
+    // Dot
+    let dotX = xPos(pts[lastI].round), dotY = yPos(pts[lastI].value);
+    if (lastI < pts.length - 1) {
+      const frac = visibleRound - pts[lastI].round;
+      if (frac > 0) {
+        dotY = yPos(pts[lastI].value + (pts[lastI + 1].value - pts[lastI].value) * frac);
+        dotX = xPos(visibleRound);
+      }
+    }
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  if (visibleRound > 0 && visibleRound <= DRIFT_MAX_ROUND) {
+    ctx.strokeStyle = "rgba(47,36,24,0.18)"; ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(xPos(visibleRound), padT); ctx.lineTo(xPos(visibleRound), H - padB); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawAllDrift(round) {
+  for (const c of driftCharts) drawDriftChart(c, round);
+}
+
+function initDrift(records) {
+  const grid = document.getElementById("drift-grid");
+  const legendEl = document.getElementById("drift-legend");
+  if (!grid || !legendEl) return;
+
+  // Legend
+  legendEl.innerHTML = "";
+  for (const [model, color] of Object.entries(DRIFT_MODEL_COLORS)) {
+    legendEl.innerHTML += `<div class="drift-legend-item"><span class="drift-legend-swatch" style="background:${color}"></span>${escapeHtml(model)}</div>`;
+  }
+
+  // Charts
+  grid.innerHTML = "";
+  driftCharts = [];
+  for (const dim of DRIFT_DIMS) {
+    const card = document.createElement("div");
+    card.className = "drift-chart-card";
+    card.innerHTML = `<h3>${escapeHtml(dim.label)}</h3><p class="drift-poles">${dim.poles}</p>`;
+    const canvas = document.createElement("canvas");
+    canvas.width = 400; canvas.height = 200;
+    card.appendChild(canvas);
+    grid.appendChild(card);
+    driftCharts.push({ canvas, series: computeDrift(records, dim), dim });
+  }
+
+  driftFrame = 0;
+  driftPlaying = true;
+  drawAllDrift(0);
+
+  const btnPlay = document.getElementById("btn-play");
+  const btnReset = document.getElementById("btn-reset");
+
+  function driftAnimate(ts) {
+    if (!driftPlaying) return;
+    if (ts - driftLastTick >= DRIFT_TICK_MS) {
+      driftLastTick = ts;
+      driftFrame += 0.5;
+      if (driftFrame > DRIFT_MAX_ROUND) {
+        driftFrame = DRIFT_MAX_ROUND;
+        driftPlaying = false;
+        btnPlay.classList.remove("active");
+        btnPlay.textContent = "Play";
+      }
+      drawAllDrift(driftFrame);
+    }
+    if (driftPlaying) requestAnimationFrame(driftAnimate);
+  }
+
+  btnPlay.addEventListener("click", () => {
+    if (driftFrame >= DRIFT_MAX_ROUND) driftFrame = 0;
+    driftPlaying = !driftPlaying;
+    btnPlay.classList.toggle("active", driftPlaying);
+    btnPlay.textContent = driftPlaying ? "Pause" : "Play";
+    if (driftPlaying) { driftLastTick = 0; requestAnimationFrame(driftAnimate); }
+  });
+
+  btnReset.addEventListener("click", () => {
+    driftPlaying = false; driftFrame = 0;
+    btnPlay.classList.remove("active"); btnPlay.textContent = "Play";
+    drawAllDrift(0);
+  });
+
+  driftLastTick = 0;
+  requestAnimationFrame(driftAnimate);
+}
+
+window.addEventListener("resize", () => drawAllDrift(driftFrame));

@@ -18,7 +18,6 @@ Your revision can be substantial. You are encouraged to:
 - Add a new section that you think is missing
 - Remove a section you think is unnecessary or harmful
 - Restructure or reframe how a topic is presented
-- Strengthen, weaken, or fundamentally alter a policy position
 
 Express your revision as a find-and-replace operation. Your response must \
 have exactly three sections separated by the delimiters below:

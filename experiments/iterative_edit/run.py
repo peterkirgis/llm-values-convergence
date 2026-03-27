@@ -104,6 +104,7 @@ async def generate_edit(
     system_prompt: str,
     user_prompt: str,
     temperature: float,
+    openrouter_config: dict | None = None,
 ) -> tuple[dict, str, str, str, object, bool]:
     """Generate an applicable edit, retrying on malformed or ambiguous responses."""
     current_prompt = user_prompt
@@ -117,6 +118,7 @@ async def generate_edit(
             system_prompt=system_prompt,
             user_prompt=current_prompt,
             temperature=temperature,
+            openrouter_config=openrouter_config,
         )
         aggregate_usage["input_tokens"] += result["input_tokens"]
         aggregate_usage["output_tokens"] += result["output_tokens"]
@@ -151,6 +153,7 @@ async def run_edit_chain(
     output_path: Path,
     existing_records: list[EditRecord],
     provider_system_prompt: str | None = None,
+    openrouter_config: dict | None = None,
 ) -> None:
     """Run a chain of iterative edits for one model+document pair."""
     completed = get_completed_rounds(output_path, model.model_id, doc_id)
@@ -185,6 +188,7 @@ async def run_edit_chain(
                     system_prompt=system_prompt,
                     user_prompt=current_prompt,
                     temperature=temperature,
+                    openrouter_config=openrouter_config,
                 )
                 usage["input_tokens"] += attempt_usage["input_tokens"]
                 usage["output_tokens"] += attempt_usage["output_tokens"]
@@ -263,7 +267,8 @@ async def run_edit_chain(
                 new_content="",
                 error=str(e),
             )
-            console.print(f"[red]error: {e}[/red]")
+            from rich.markup import escape
+            console.print(f"[red]error: {escape(str(e))}[/red]")
 
         append_record(output_path, record)
 
@@ -281,6 +286,7 @@ async def main():
 
     n_rounds = args.rounds or config["experiment"]["n_rounds"]
     temperature = config["experiment"]["temperature"]
+    openrouter_config = config.get("openrouter")
 
     # Set up output
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -359,6 +365,7 @@ async def main():
                 output_path=output_path,
                 existing_records=existing_records,
                 provider_system_prompt=provider_system_prompt,
+                openrouter_config=openrouter_config,
             )
 
     console.print(f"\n[green]Experiment complete![/green] Results: {output_path}")

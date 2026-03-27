@@ -4,6 +4,16 @@ experiment:
   n_rounds: 10
   temperature: 0.7
 
+# OpenRouter routing controls (optional — omit to use defaults)
+openrouter:
+  disable_compression: true      # prevent middle-out prompt compression
+  allow_fallbacks: false          # don't fall back to alternate providers
+  provider_order:                 # pin each model to its native provider
+    anthropic: ["anthropic"]
+    openai: ["openai"]
+    google: ["google-ai-studio", "google-vertex"]
+    xai: ["xai"]
+
 # Cheap models for testing - same documents, smaller models
 assignments:
   - model:
