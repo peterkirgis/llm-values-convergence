@@ -26,6 +26,8 @@ class EditRecord(BaseModel):
     """Record of a single iterative edit."""
     experiment: str = "iterative_edit"
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    condition_id: str = "baseline"
+    condition_name: str = "Baseline"
     model_id: str
     model_display: str
     document_id: str
@@ -42,4 +44,5 @@ class EditRecord(BaseModel):
     elapsed_ms: int = 0
     match_strategy: str = "exact"  # "exact", "whitespace", "fuzzy"
     retried: bool = False
+    no_change: bool = False
     error: Optional[str] = None

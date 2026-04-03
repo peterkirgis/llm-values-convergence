@@ -27,13 +27,16 @@ def export_changes(input_path: Path) -> Path:
             record = json.loads(line)
             records.append(
                 {
+                    "condition_id": record.get("condition_id", "baseline"),
+                    "condition_name": record.get("condition_name", "Baseline"),
                     "model_display": record.get("model_display"),
                     "document_id": record.get("document_id"),
                     "doc_type": record.get("doc_type"),
                     "round_number": record.get("round_number"),
+                    "no_change": bool(record.get("no_change")),
                     "error": record.get("error"),
-                    "original_text": record.get("find_text", ""),
-                    "changed_text": record.get("replace_text", ""),
+                    "original_text": "" if record.get("no_change") else record.get("find_text", ""),
+                    "changed_text": "" if record.get("no_change") else record.get("replace_text", ""),
                 }
             )
 

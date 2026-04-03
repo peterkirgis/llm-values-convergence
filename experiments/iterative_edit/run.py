@@ -30,7 +30,14 @@ from valconv.diffing import apply_diff
 from valconv.providers import call_llm
 from valconv.storage import append_record, get_completed_rounds, load_records
 
-from prompts import PROVIDER_SYSTEM_PROMPTS, RETRY_PROMPT, build_system_prompt, make_user_prompt
+from prompts import (
+    NO_CHANGE_SENTINEL,
+    PROVIDER_SYSTEM_PROMPTS,
+    RETRY_PROMPT,
+    build_system_prompt,
+    make_user_prompt,
+    normalize_condition,
+)
 
 console = Console(force_terminal=True)
 DIFF_SECTION_RE = re.compile(
@@ -56,11 +63,21 @@ def load_processed_document(doc_id: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def get_latest_content(records: list[EditRecord], model_id: str, doc_id: str) -> str | None:
-    """Get the latest document content from previous rounds."""
+def get_latest_content(
+    records: list[EditRecord],
+    model_id: str,
+    doc_id: str,
+    condition_id: str = "baseline",
+) -> str | None:
+    """Get the latest document content from previous successful rounds."""
     matching = [
         r for r in records
-        if r.model_id == model_id and r.document_id == doc_id and r.error is None
+        if (
+            r.model_id == model_id
+            and r.document_id == doc_id
+            and r.condition_id == condition_id
+            and r.error is None
+        )
     ]
     if not matching:
         return None
@@ -97,6 +114,11 @@ def ensure_unique_match(diff_result) -> None:
             f"FIND text matched {diff_result.match_count} locations under "
             f"{diff_result.match_strategy} matching; include more context to make it unique."
         )
+
+
+def is_no_change_response(find_text: str, replace_text: str) -> bool:
+    sentinel = NO_CHANGE_SENTINEL.casefold()
+    return find_text.strip().casefold() == sentinel and replace_text.strip().casefold() == sentinel
 
 
 async def generate_edit(
@@ -143,6 +165,8 @@ async def generate_edit(
 
 
 async def run_edit_chain(
+    experiment_name: str,
+    condition: dict,
     model: ModelSpec,
     doc_id: str,
     doc_name: str,
@@ -156,10 +180,12 @@ async def run_edit_chain(
     openrouter_config: dict | None = None,
 ) -> None:
     """Run a chain of iterative edits for one model+document pair."""
-    completed = get_completed_rounds(output_path, model.model_id, doc_id)
+    condition_id = condition["condition_id"]
+    condition_name = condition["condition_name"]
+    completed = get_completed_rounds(output_path, model.model_id, doc_id, condition_id)
 
     # Get the starting content (either from last completed round or the processed doc)
-    content = get_latest_content(existing_records, model.model_id, doc_id)
+    content = get_latest_content(existing_records, model.model_id, doc_id, condition_id)
     if content is None:
         content = load_processed_document(doc_id)
     start_round = max(completed, default=0) + 1
@@ -169,12 +195,12 @@ async def run_edit_chain(
         return
 
     # Build the system prompt once (same for all rounds of this chain)
-    system_prompt = build_system_prompt(doc_type, provider_system_prompt)
+    system_prompt = build_system_prompt(doc_type, provider_system_prompt, condition)
 
     for round_num in range(start_round, n_rounds + 1):
         console.print(f"  Round {round_num}/{n_rounds}...", end=" ")
 
-        user_prompt = make_user_prompt(doc_name, doc_type, doc_provider, content)
+        user_prompt = make_user_prompt(doc_name, doc_type, doc_provider, content, condition)
 
         try:
             current_prompt = user_prompt
@@ -196,8 +222,11 @@ async def run_edit_chain(
                 retried = retried or attempt_retried or attempt > 1
 
                 try:
-                    diff_result = apply_diff(content, find_text, replace_text)
-                    ensure_unique_match(diff_result)
+                    if is_no_change_response(find_text, replace_text):
+                        diff_result = None
+                    else:
+                        diff_result = apply_diff(content, find_text, replace_text)
+                        ensure_unique_match(diff_result)
                     break
                 except ValueError as e:
                     last_error = e
@@ -215,15 +244,23 @@ async def run_edit_chain(
                 assert last_error is not None
                 raise last_error
 
-            new_content = diff_result.new_content
+            no_change = is_no_change_response(find_text, replace_text)
+            new_content = content if no_change else diff_result.new_content
 
-            if diff_result.match_strategy == "fuzzy" and diff_result.fuzzy_score is not None:
+            if (
+                not no_change
+                and diff_result.match_strategy == "fuzzy"
+                and diff_result.fuzzy_score is not None
+            ):
                 console.print(
                     f"    [yellow]Using fuzzy match[/yellow] "
                     f"(similarity {diff_result.fuzzy_score:.3f})"
                 )
 
             record = EditRecord(
+                experiment=experiment_name,
+                condition_id=condition_id,
+                condition_name=condition_name,
                 model_id=model.model_id,
                 model_display=model.display_name,
                 document_id=doc_id,
@@ -238,8 +275,9 @@ async def run_edit_chain(
                 input_tokens=usage["input_tokens"],
                 output_tokens=usage["output_tokens"],
                 elapsed_ms=usage["elapsed_ms"],
-                match_strategy=diff_result.match_strategy,
+                match_strategy="no_change" if no_change else diff_result.match_strategy,
                 retried=retried,
+                no_change=no_change,
             )
 
             # Update content for next round
@@ -252,10 +290,15 @@ async def run_edit_chain(
             )
             if retried:
                 console.print("    [yellow]Recovered after retry[/yellow]")
+            if no_change:
+                console.print("    [yellow]No change selected[/yellow]")
             console.print(f"    Change: {change_desc[:120]}...")
 
         except Exception as e:
             record = EditRecord(
+                experiment=experiment_name,
+                condition_id=condition_id,
+                condition_name=condition_name,
                 model_id=model.model_id,
                 model_display=model.display_name,
                 document_id=doc_id,
@@ -277,6 +320,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Run iterative edit experiment")
     parser.add_argument("--rounds", type=int, help="Override number of rounds")
     parser.add_argument("--model", type=str, help="Run only one provider (anthropic/openai/google/xai)")
+    parser.add_argument("--condition", type=str, help="Run only one condition_id from the config")
     parser.add_argument("--dry-run", action="store_true", help="Print plan without calling APIs")
     parser.add_argument("--config", type=str, default="experiments/iterative_edit/config.yaml")
     args = parser.parse_args()
@@ -284,9 +328,18 @@ async def main():
     config_path = PROJECT_ROOT / args.config
     config = load_config(config_path)
 
+    experiment_name = config["experiment"].get("name", "iterative_edit")
     n_rounds = args.rounds or config["experiment"]["n_rounds"]
     temperature = config["experiment"]["temperature"]
     openrouter_config = config.get("openrouter")
+    conditions = [
+        normalize_condition(condition)
+        for condition in config["experiment"].get("conditions", [{"condition_id": "baseline", "condition_name": "Baseline"}])
+    ]
+    if args.condition:
+        conditions = [condition for condition in conditions if condition["condition_id"] == args.condition]
+        if not conditions:
+            raise SystemExit(f"Unknown condition_id: {args.condition}")
 
     # Set up output
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -299,10 +352,13 @@ async def main():
     existing_records = []
     if existing_runs:
         latest_run = existing_runs[-1]
-        console.print(f"[yellow]Found existing run: {latest_run.name}[/yellow]")
-        output_path = latest_run  # Resume into the same file
-        existing_records = load_records(latest_run, EditRecord)
-        console.print(f"  {len(existing_records)} records loaded")
+        candidate_records = load_records(latest_run, EditRecord)
+        latest_experiment = candidate_records[0].experiment if candidate_records else None
+        if latest_experiment == experiment_name:
+            console.print(f"[yellow]Found existing run: {latest_run.name}[/yellow]")
+            output_path = latest_run  # Resume into the same file
+            existing_records = candidate_records
+            console.print(f"  {len(existing_records)} records loaded")
 
     # Build assignment list
     assignments = config["assignments"]
@@ -314,18 +370,31 @@ async def main():
     table.add_column("Model")
     table.add_column("Document")
     table.add_column("Type")
+    table.add_column("Condition")
     table.add_column("Status")
 
     total_calls = 0
     for assignment in assignments:
         model_spec = ModelSpec(**assignment["model"])
-        for doc in assignment["documents"]:
-            completed = get_completed_rounds(output_path, model_spec.model_id, doc["doc_id"])
-            completed_count = min(len(completed), n_rounds)
-            remaining = max(0, n_rounds - completed_count)
-            status = f"{completed_count}/{n_rounds} done" if completed_count else "pending"
-            table.add_row(model_spec.display_name, doc["name"], doc["doc_type"], status)
-            total_calls += remaining
+        for condition in conditions:
+            for doc in assignment["documents"]:
+                completed = get_completed_rounds(
+                    output_path,
+                    model_spec.model_id,
+                    doc["doc_id"],
+                    condition["condition_id"],
+                )
+                completed_count = min(len(completed), n_rounds)
+                remaining = max(0, n_rounds - completed_count)
+                status = f"{completed_count}/{n_rounds} done" if completed_count else "pending"
+                table.add_row(
+                    model_spec.display_name,
+                    doc["name"],
+                    doc["doc_type"],
+                    condition["condition_name"],
+                    status,
+                )
+                total_calls += remaining
 
     console.print(table)
     console.print(f"\nTotal API calls needed: {total_calls}")
@@ -351,22 +420,26 @@ async def main():
             except FileNotFoundError:
                 console.print(f"  [yellow]Warning: no processed system prompt for {provider}, constitutions will use edit instruction only[/yellow]")
 
-        for doc in assignment["documents"]:
-            console.print(f"\n[bold]{doc['name']}[/bold] ({doc['doc_type']})")
+        for condition in conditions:
+            console.print(f"\n[bold]{condition['condition_name']}[/bold]")
+            for doc in assignment["documents"]:
+                console.print(f"\n[bold]{doc['name']}[/bold] ({doc['doc_type']})")
 
-            await run_edit_chain(
-                model=model_spec,
-                doc_id=doc["doc_id"],
-                doc_name=doc["name"],
-                doc_provider=doc["provider"],
-                doc_type=doc["doc_type"],
-                n_rounds=n_rounds,
-                temperature=temperature,
-                output_path=output_path,
-                existing_records=existing_records,
-                provider_system_prompt=provider_system_prompt,
-                openrouter_config=openrouter_config,
-            )
+                await run_edit_chain(
+                    experiment_name=experiment_name,
+                    condition=condition,
+                    model=model_spec,
+                    doc_id=doc["doc_id"],
+                    doc_name=doc["name"],
+                    doc_provider=doc["provider"],
+                    doc_type=doc["doc_type"],
+                    n_rounds=n_rounds,
+                    temperature=temperature,
+                    output_path=output_path,
+                    existing_records=existing_records,
+                    provider_system_prompt=provider_system_prompt,
+                    openrouter_config=openrouter_config,
+                )
 
     console.print(f"\n[green]Experiment complete![/green] Results: {output_path}")
 

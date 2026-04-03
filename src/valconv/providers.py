@@ -88,9 +88,29 @@ async def call_llm(
     )
     elapsed = int((time.monotonic() - start) * 1000)
 
+    if not getattr(response, "choices", None):
+        raise ValueError(
+            f"LLM returned no choices for model={model.model_id!r}. "
+            f"Response type={type(response).__name__}"
+        )
+
+    message = response.choices[0].message
+    text = message.content
+    if isinstance(text, list):
+        text = "".join(
+            part.text for part in text if getattr(part, "type", None) == "text" and getattr(part, "text", None)
+        )
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError(
+            f"LLM returned empty content for model={model.model_id!r}. "
+            f"Finish reason={getattr(response.choices[0], 'finish_reason', None)!r}"
+        )
+
+    usage = getattr(response, "usage", None)
+
     return {
-        "text": response.choices[0].message.content,
-        "input_tokens": response.usage.prompt_tokens,
-        "output_tokens": response.usage.completion_tokens,
+        "text": text,
+        "input_tokens": getattr(usage, "prompt_tokens", 0),
+        "output_tokens": getattr(usage, "completion_tokens", 0),
         "elapsed_ms": elapsed,
     }

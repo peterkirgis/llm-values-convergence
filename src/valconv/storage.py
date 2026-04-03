@@ -29,8 +29,13 @@ def load_records(path: Path, model_class: type[T]) -> list[T]:
     return records
 
 
-def get_completed_rounds(path: Path, model_id: str, document_id: str) -> set[int]:
-    """Get set of completed round numbers for a model+document pair."""
+def get_completed_rounds(
+    path: Path,
+    model_id: str,
+    document_id: str,
+    condition_id: str = "baseline",
+) -> set[int]:
+    """Get set of completed round numbers for a model+document+condition chain."""
     completed = set()
     if not path.exists():
         return completed
@@ -44,6 +49,7 @@ def get_completed_rounds(path: Path, model_id: str, document_id: str) -> set[int
                 if (
                     record.get("model_id") == model_id
                     and record.get("document_id") == document_id
+                    and record.get("condition_id", "baseline") == condition_id
                     and record.get("error") is None
                 ):
                     completed.add(record["round_number"])

@@ -18,10 +18,11 @@ VIEWER_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = ROOT / "results" / "iterative_edit"
 DOCS_DIR = ROOT / "docs"
 DATA_DIR = DOCS_DIR / "data"
+ACTIVE_DIMENSIONS = {"authority", "user_stance", "telos"}
 
 
 def coded_path_for_run(run_name: str) -> Path:
-    # Prefer v2 (4D schema) coded file if available
+    # Prefer the explicitly versioned coded file if available
     v2_path = RESULTS_DIR / run_name.replace(".jsonl", "_changes_coded_v2.json")
     if v2_path.exists():
         return v2_path
@@ -39,7 +40,7 @@ def load_jsonl_records(path: Path) -> list[dict]:
     return records
 
 
-def load_coded_records(run_name: str) -> dict[tuple[str, str, str, int], dict]:
+def load_coded_records(run_name: str) -> dict[tuple[str, str, str, str, int], dict]:
     path = coded_path_for_run(run_name)
     if not path.exists():
         return {}
@@ -50,6 +51,7 @@ def load_coded_records(run_name: str) -> dict[tuple[str, str, str, int], dict]:
     coded = {}
     for item in items:
         key = (
+            item.get("condition_id") or "baseline",
             item.get("model_display") or "",
             item.get("document_id") or "",
             item.get("doc_type") or "",
@@ -57,7 +59,11 @@ def load_coded_records(run_name: str) -> dict[tuple[str, str, str, int], dict]:
         )
         coded[key] = {
             "summary": item.get("summary", ""),
-            "dimensions": item.get("dimensions", {}),
+            "dimensions": {
+                name: value
+                for name, value in (item.get("dimensions", {}) or {}).items()
+                if name in ACTIVE_DIMENSIONS
+            },
             "coder_model": item.get("coder_model", ""),
         }
     return coded
@@ -73,14 +79,19 @@ def summarize_run(records: list[dict], run_name: str) -> dict:
         "error_count": len(errors),
         "models": sorted({record["model_display"] for record in records}),
         "documents": sorted({record["document_id"] for record in records}),
+        "conditions": sorted({record.get("condition_name", "Baseline") for record in records}),
     }
 
 
 def changed_records(run_name: str, records: list[dict]) -> list[dict]:
     coded_records = load_coded_records(run_name)
-    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for record in records:
-        key = (record["model_id"], record["document_id"])
+        key = (
+            record["model_id"],
+            record["document_id"],
+            record.get("condition_id", "baseline"),
+        )
         grouped[key].append(record)
 
     items = []
@@ -88,6 +99,7 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
         chain.sort(key=lambda record: record["round_number"])
         for record in chain:
             coding_key = (
+                record.get("condition_id", "baseline"),
                 record.get("model_display") or "",
                 record.get("document_id") or "",
                 record.get("doc_type") or "",
@@ -111,11 +123,13 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
             items.append(
                 {
                     "id": (
-                        f"{run_name}:{record['model_id']}:{record['document_id']}:"
+                        f"{run_name}:{record['model_id']}:{record['document_id']}:{record.get('condition_id', 'baseline')}:"
                         f"{record['round_number']}"
                     ),
                     "run_name": run_name,
                     "timestamp": record.get("timestamp"),
+                    "condition_id": record.get("condition_id", "baseline"),
+                    "condition_name": record.get("condition_name", "Baseline"),
                     "model_id": record.get("model_id"),
                     "model_display": record.get("model_display"),
                     "document_id": record.get("document_id"),
@@ -128,6 +142,7 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
                     "replace_text": record.get("replace_text", ""),
                     "match_strategy": record.get("match_strategy", "exact"),
                     "retried": bool(record.get("retried")),
+                    "no_change": bool(record.get("no_change")),
                     "error": record.get("error"),
                     "input_tokens": record.get("input_tokens", 0),
                     "output_tokens": record.get("output_tokens", 0),
@@ -140,6 +155,7 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
 
     items.sort(
         key=lambda record: (
+            record["condition_name"] or "",
             record["model_display"] or "",
             record["document_id"] or "",
             record["round_number"] or 0,
@@ -173,6 +189,11 @@ def build_static_site() -> None:
     with open(DATA_DIR / "site.json", "w", encoding="utf-8") as handle:
         json.dump(bundle, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
+
+    import gzip as _gzip
+    json_bytes = json.dumps(bundle, ensure_ascii=False).encode("utf-8")
+    with _gzip.open(DATA_DIR / "site.json.gz", "wb") as gz:
+        gz.write(json_bytes)
 
 
 def main() -> None:

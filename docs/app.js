@@ -2,13 +2,16 @@ const runSelect = document.getElementById("run-select");
 const modelFilter = document.getElementById("model-filter");
 const documentFilter = document.getElementById("document-filter");
 const typeFilter = document.getElementById("type-filter");
+const conditionFilter = document.getElementById("condition-filter");
 const searchInput = document.getElementById("search-input");
 const errorsToggle = document.getElementById("errors-toggle");
 const recordsRoot = document.getElementById("records");
 const resultSummary = document.getElementById("result-summary");
 const codingSummary = document.getElementById("coding-summary");
 const heroModels = document.getElementById("hero-models");
+const heroConditions = document.getElementById("hero-conditions");
 const template = document.getElementById("record-template");
+const driftConditionChips = document.getElementById("drift-condition-chips");
 
 const state = {
   runs: [],
@@ -48,17 +51,29 @@ const DIMENSIONS = [
       mixed: "Mixed",
     },
   },
-  {
-    key: "mutability",
-    label: "Mutability",
-    directions: ["fixed", "revisable", "mixed"],
-    directionLabels: {
-      fixed: "Fixed",
-      revisable: "Revisable",
-      mixed: "Mixed",
-    },
-  },
 ];
+
+const DRIFT_MODEL_COLORS = {
+  "Claude Opus 4.6": "#8f3c2d",
+  "Claude Haiku 4.5": "#b5452a",
+  "GPT-5.4 Thinking": "#1f5da0",
+  "GPT-5.4 Mini": "#2a6cb5",
+  "Gemini 3.1 Pro": "#7c6230",
+  "Gemini 3 Flash": "#8b6e2f",
+  "Grok 4.2": "#6a2ab5",
+};
+
+const DRIFT_DIMS = [
+  { key: "authority", label: "Authority", poles: "External (-) vs Internal (+)", pos: "internal", neg: "external" },
+  { key: "user_stance", label: "User Stance", poles: "Protection (-) vs Autonomy (+)", pos: "autonomy", neg: "protection" },
+  { key: "telos", label: "Telos", poles: "Wellbeing (-) vs Truth (+)", pos: "truth", neg: "wellbeing" },
+];
+
+let driftFrame = 0;
+let driftPlaying = true;
+let driftLastTick = 0;
+const DRIFT_TICK_MS = 600;
+let driftCharts = [];
 
 function noteKey(recordId) {
   return `iterative-edit-note:${recordId}`;
@@ -69,7 +84,7 @@ function tagKey(recordId) {
 }
 
 function escapeHtml(text) {
-  return text
+  return String(text || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
@@ -79,17 +94,27 @@ function titleCaseDirection(direction, config) {
   return config.directionLabels[direction] || direction;
 }
 
+function normalizeConditionName(record) {
+  return record.condition_name || "Baseline";
+}
+
 async function fetchJson(path) {
   const response = await fetch(path);
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
+  }
+  if (path.endsWith(".gz")) {
+    const ds = new DecompressionStream("gzip");
+    const decompressed = response.body.pipeThrough(ds);
+    const text = await new Response(decompressed).text();
+    return JSON.parse(text);
   }
   return response.json();
 }
 
 async function loadRuns() {
   try {
-    const staticPayload = await fetchJson("./data/site.json");
+    const staticPayload = await fetchJson("./data/site.json.gz");
     state.staticRuns = staticPayload.runs || [];
     state.runs = state.staticRuns.map((run) => ({
       run_name: run.run_name,
@@ -98,6 +123,7 @@ async function loadRuns() {
       error_count: run.error_count,
       models: run.models || [],
       documents: run.documents || [],
+      conditions: run.conditions || [],
     }));
   } catch (_error) {
     state.staticRuns = null;
@@ -111,6 +137,7 @@ async function loadRuns() {
     option.textContent = `${run.run_name} (${run.successful_count} successes, ${run.error_count} errors)`;
     runSelect.append(option);
   }
+
   if (state.runs.length > 0) {
     state.selectedRun = state.runs[0].run_name;
     runSelect.value = state.selectedRun;
@@ -125,27 +152,44 @@ async function loadRun(runName) {
     if (!payload) {
       throw new Error(`Run not found in static bundle: ${runName}`);
     }
-    state.records = payload.records || [];
+    state.records = (payload.records || []).map((record) => ({
+      ...record,
+      condition_name: record.condition_name || "Baseline",
+      condition_id: record.condition_id || "baseline",
+    }));
   } else {
     const payload = await fetchJson(`/api/run?name=${encodeURIComponent(runName)}`);
-    state.records = payload.records;
+    state.records = (payload.records || []).map((record) => ({
+      ...record,
+      condition_name: record.condition_name || "Baseline",
+      condition_id: record.condition_id || "baseline",
+    }));
   }
   renderHeroMetadata();
   populateFilters();
   render();
-  initDrift(state.records);
 }
 
 function renderHeroMetadata() {
   const run = state.runs.find((item) => item.run_name === state.selectedRun);
   const models = run?.models || [];
+  const conditions = run?.conditions || [];
+
   heroModels.textContent = models.length > 0
     ? `Models tested: ${models.join(" · ")}`
     : "Models tested: none available for this run";
+  heroConditions.textContent = conditions.length > 0
+    ? `Conditions: ${conditions.join(" · ")}`
+    : "Conditions: Baseline";
 }
 
-function uniqueValues(items, key) {
-  return [...new Set(items.map((item) => item[key]).filter(Boolean))].sort();
+function uniqueValues(items, getValue) {
+  const values = new Set();
+  for (const item of items) {
+    const value = typeof getValue === "function" ? getValue(item) : item[getValue];
+    if (value) values.add(value);
+  }
+  return [...values].sort();
 }
 
 function syncSelectOptions(select, values, allLabel) {
@@ -165,29 +209,43 @@ function syncSelectOptions(select, values, allLabel) {
 function populateFilters() {
   syncSelectOptions(modelFilter, uniqueValues(state.records, "model_display"), "All models");
   syncSelectOptions(documentFilter, uniqueValues(state.records, "document_id"), "All documents");
+  syncSelectOptions(conditionFilter, uniqueValues(state.records, normalizeConditionName), "All conditions");
+  renderDriftConditionChips();
+}
+
+function renderDriftConditionChips() {
+  if (!driftConditionChips) return;
+  const conditions = uniqueValues(state.records, normalizeConditionName);
+  const options = ["", ...conditions];
+  driftConditionChips.innerHTML = options.map((value) => {
+    const active = conditionFilter.value === value;
+    const label = value || "All conditions";
+    return `<button class="drift-chip${active ? " active" : ""}" data-condition="${escapeHtml(value)}">${escapeHtml(label)}</button>`;
+  }).join("");
+
+  driftConditionChips.querySelectorAll(".drift-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const nextValue = chip.getAttribute("data-condition") || "";
+      conditionFilter.value = nextValue;
+      renderDriftConditionChips();
+      render();
+    });
+  });
 }
 
 function recordMatches(record) {
-  if (modelFilter.value && record.model_display !== modelFilter.value) {
-    return false;
-  }
-  if (documentFilter.value && record.document_id !== documentFilter.value) {
-    return false;
-  }
-  if (typeFilter.value && record.doc_type !== typeFilter.value) {
-    return false;
-  }
-  if (!errorsToggle.checked && record.error) {
-    return false;
-  }
+  if (modelFilter.value && record.model_display !== modelFilter.value) return false;
+  if (documentFilter.value && record.document_id !== documentFilter.value) return false;
+  if (typeFilter.value && record.doc_type !== typeFilter.value) return false;
+  if (conditionFilter.value && normalizeConditionName(record) !== conditionFilter.value) return false;
+  if (!errorsToggle.checked && record.error) return false;
 
   const query = searchInput.value.trim().toLowerCase();
-  if (!query) {
-    return true;
-  }
+  if (!query) return true;
 
   const haystack = [
     record.change_description,
+    record.condition_name,
     record.find_text,
     record.replace_text,
     record.error,
@@ -202,18 +260,8 @@ function recordMatches(record) {
   return haystack.includes(query);
 }
 
-function summarizeVisible(records) {
-  const visible = records.filter(recordMatches);
-  const successes = visible.filter((record) => !record.error);
-  const fuzzy = successes.filter((record) => record.match_strategy === "fuzzy").length;
-  const retried = successes.filter((record) => record.retried).length;
-
-  resultSummary.textContent =
-    `${visible.length} rows visible · ${successes.length} successful edits · ` +
-    `${visible.length - successes.length} errors · ${retried} retried · ${fuzzy} fuzzy matches`;
-
-  renderCodingSummary(visible);
-  return visible;
+function getVisibleRecords() {
+  return state.records.filter(recordMatches);
 }
 
 function buildDirectionRows(counts, config, codedTotal) {
@@ -250,9 +298,7 @@ function renderCodingSummary(records) {
   const byModel = new Map();
   for (const record of codedRecords) {
     const key = record.model_display || "Unknown model";
-    if (!byModel.has(key)) {
-      byModel.set(key, []);
-    }
+    if (!byModel.has(key)) byModel.set(key, []);
     byModel.get(key).push(record);
   }
 
@@ -264,9 +310,7 @@ function renderCodingSummary(records) {
         const counts = Object.fromEntries(config.directions.map((direction) => [direction, 0]));
         for (const record of presentRecords) {
           const direction = record.coding?.dimensions?.[config.key]?.direction;
-          if (direction && direction in counts) {
-            counts[direction] += 1;
-          }
+          if (direction && direction in counts) counts[direction] += 1;
         }
         return `
           <section class="dimension-card">
@@ -298,29 +342,46 @@ function renderCodingSummary(records) {
   codingSummary.innerHTML = cards;
 }
 
+function summarizeVisible(visible) {
+  const successes = visible.filter((record) => !record.error);
+  const fuzzy = successes.filter((record) => record.match_strategy === "fuzzy").length;
+  const retried = successes.filter((record) => record.retried).length;
+  const noChange = successes.filter((record) => record.no_change).length;
+
+  resultSummary.textContent =
+    `${visible.length} rows visible · ${successes.length} successful edits · `
+    + `${visible.length - successes.length} errors · ${retried} retried · `
+    + `${fuzzy} fuzzy matches · ${noChange} no-change rounds`;
+
+  renderCodingSummary(visible);
+}
+
 function renderRecord(record) {
   const node = template.content.firstElementChild.cloneNode(true);
   node.querySelector(".record-title").textContent = record.change_description || "Unapplied edit";
+  node.querySelector(".condition-badge").textContent = normalizeConditionName(record);
   node.querySelector(".record-subtitle").textContent =
-    `${record.model_display} · ${record.document_id} · ${record.doc_type} · round ${record.round_number}/${record.total_rounds}`;
+    `${record.model_display} · ${record.document_id} · ${record.doc_type} · ${normalizeConditionName(record)} · round ${record.round_number}/${record.total_rounds}`;
   node.querySelector(".round-badge").textContent = `round ${record.round_number}`;
   node.querySelector(".strategy-badge").textContent = record.match_strategy || "exact";
 
   const retryBadge = node.querySelector(".retry-badge");
-  if (record.retried) {
-    retryBadge.classList.remove("hidden");
-  }
+  if (record.retried) retryBadge.classList.remove("hidden");
 
   const errorBadge = node.querySelector(".error-badge");
   const errorMessage = node.querySelector(".error-message");
   const beforeText = node.querySelector(".before-text");
   const afterText = node.querySelector(".after-text");
+
   if (record.error) {
     errorBadge.classList.remove("hidden");
     errorMessage.classList.remove("hidden");
     errorMessage.textContent = record.error;
     beforeText.textContent = record.find_text || "(no FIND text captured)";
     afterText.textContent = "(edit failed before application)";
+  } else if (record.no_change) {
+    beforeText.textContent = "(document left unchanged)";
+    afterText.textContent = "(no replacement applied)";
   } else {
     beforeText.textContent = record.find_text || "(empty)";
     afterText.textContent = record.replace_text || "(deleted)";
@@ -336,9 +397,7 @@ function renderRecord(record) {
     codingBlock.className = "coding-block";
     const chips = DIMENSIONS.flatMap((config) => {
       const code = record.coding?.dimensions?.[config.key];
-      if (!code?.present || !code.direction) {
-        return [];
-      }
+      if (!code?.present || !code.direction) return [];
       return [
         `<span class="coding-chip"><strong>${escapeHtml(config.label)}:</strong> ${escapeHtml(titleCaseDirection(code.direction, config))}</span>`,
       ];
@@ -370,7 +429,9 @@ function renderRecord(record) {
 }
 
 function render() {
-  const visible = summarizeVisible(state.records);
+  const visible = getVisibleRecords();
+  renderDriftConditionChips();
+  summarizeVisible(visible);
   recordsRoot.innerHTML = "";
 
   if (visible.length === 0) {
@@ -378,19 +439,22 @@ function render() {
     empty.className = "empty-state";
     empty.textContent = "No records match the current filters.";
     recordsRoot.append(empty);
+    initDrift([]);
     return;
   }
 
   for (const record of visible) {
     recordsRoot.append(renderRecord(record));
   }
+
+  initDrift(visible);
 }
 
 runSelect.addEventListener("change", async () => {
   await loadRun(runSelect.value);
 });
 
-[modelFilter, documentFilter, typeFilter, errorsToggle].forEach((element) => {
+[modelFilter, documentFilter, typeFilter, conditionFilter, errorsToggle].forEach((element) => {
   element.addEventListener("change", render);
 });
 
@@ -400,139 +464,270 @@ loadRuns().catch((error) => {
   recordsRoot.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
 });
 
-// --- Drift visualization ---
+function getDriftMaxRound(records) {
+  if (records.length === 0) return 1;
+  const rounds = records.map((record) => Number(record.total_rounds || record.round_number || 0));
+  return Math.max(1, ...rounds);
+}
 
-const DRIFT_MODEL_COLORS = {
-  "Claude Haiku 4.5": "#b5452a",
-  "GPT-5.4 Mini":     "#2a6cb5",
-  "Gemini 3 Flash":   "#8b6e2f",
-  "Grok 4.2":         "#6a2ab5",
-};
+function buildCumulativePoints(roundDeltas, maxRound) {
+  let cumulative = 0;
+  const points = [{ round: 0, value: 0 }];
+  for (let round = 1; round <= maxRound; round += 1) {
+    cumulative += roundDeltas[round] || 0;
+    points.push({ round, value: cumulative });
+  }
+  return points;
+}
 
-const DRIFT_DIMS = [
-  { key: "authority",   label: "Authority",   poles: "External (\u2212) vs Internal (+)", pos: "internal",  neg: "external" },
-  { key: "user_stance", label: "User Stance", poles: "Protection (\u2212) vs Autonomy (+)", pos: "autonomy",  neg: "protection" },
-  { key: "telos",       label: "Telos",       poles: "Wellbeing (\u2212) vs Truth (+)",     pos: "truth",     neg: "wellbeing" },
-  { key: "mutability",  label: "Mutability",  poles: "Fixed (\u2212) vs Revisable (+)",     pos: "revisable", neg: "fixed" },
-];
+function computeDrift(records, dim, maxRound) {
+  const byModelCondition = {};
 
-const DRIFT_MAX_ROUND = 20;
-let driftFrame = 0;
-let driftPlaying = true;
-let driftLastTick = 0;
-const DRIFT_TICK_MS = 600;
-let driftCharts = [];
-
-function computeDrift(records, dim) {
-  const byModel = {};
-  for (const r of records) {
-    if (!r.coding || r.error) continue;
-    const m = r.model_display;
-    if (!byModel[m]) byModel[m] = {};
-    const code = r.coding.dimensions?.[dim.key];
+  for (const record of records) {
+    if (!record.coding || record.error) continue;
+    const code = record.coding.dimensions?.[dim.key];
     if (!code?.present || !code.direction) continue;
-    const round = r.round_number;
-    if (!byModel[m][round]) byModel[m][round] = 0;
-    if (code.direction === dim.pos) byModel[m][round] += 1;
-    else if (code.direction === dim.neg) byModel[m][round] -= 1;
+
+    const model = record.model_display;
+    const condition = record.condition_id || "baseline";
+    byModelCondition[model] ||= {};
+    byModelCondition[model][condition] ||= {};
+    byModelCondition[model][condition][record.round_number] ||= 0;
+
+    if (code.direction === dim.pos) byModelCondition[model][condition][record.round_number] += 1;
+    else if (code.direction === dim.neg) byModelCondition[model][condition][record.round_number] -= 1;
   }
+
   const series = {};
-  for (const [model, rounds] of Object.entries(byModel)) {
-    let cum = 0;
-    const pts = [{ round: 0, value: 0 }];
-    for (let r = 1; r <= DRIFT_MAX_ROUND; r++) {
-      cum += (rounds[r] || 0);
-      pts.push({ round: r, value: cum });
+  for (const [model, conditionMap] of Object.entries(byModelCondition)) {
+    const conditionSeries = Object.values(conditionMap).map((rounds) => buildCumulativePoints(rounds, maxRound));
+    if (conditionSeries.length === 0) continue;
+
+    const mean = [];
+    const band = [];
+    for (let index = 0; index <= maxRound; index += 1) {
+      const values = conditionSeries.map((points) => points[index].value);
+      const total = values.reduce((sum, value) => sum + value, 0);
+      mean.push({ round: index, value: total / values.length });
+      band.push({ round: index, min: Math.min(...values), max: Math.max(...values) });
     }
-    series[model] = pts;
+
+    series[model] = {
+      mean,
+      band,
+      conditionCount: conditionSeries.length,
+    };
   }
+
   return series;
 }
 
+function niceStep(rawStep) {
+  const power = 10 ** Math.floor(Math.log10(rawStep || 1));
+  const normalized = rawStep / power;
+  if (normalized <= 1) return 1 * power;
+  if (normalized <= 2) return 2 * power;
+  if (normalized <= 5) return 5 * power;
+  return 10 * power;
+}
+
+function getDriftYScale(series, maxRound) {
+  const values = [0];
+  for (const modelSeries of Object.values(series)) {
+    const points = modelSeries.conditionCount > 1 ? modelSeries.band : modelSeries.mean;
+    for (const point of points) {
+      if (point.round <= maxRound) {
+        if (modelSeries.conditionCount > 1) {
+          values.push(point.min, point.max);
+        } else {
+          values.push(point.value);
+        }
+      }
+    }
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  if (minValue === maxValue) {
+    return {
+      yMin: minValue - 1,
+      yMax: maxValue + 1,
+      ticks: [minValue - 1, minValue, minValue + 1],
+    };
+  }
+
+  const targetTicks = 5;
+  const step = niceStep((maxValue - minValue) / (targetTicks - 1));
+  let yMin = Math.floor(minValue / step) * step;
+  let yMax = Math.ceil(maxValue / step) * step;
+
+  if (yMin === yMax) {
+    yMin -= step;
+    yMax += step;
+  }
+
+  const ticks = [];
+  for (let value = yMin; value <= yMax + step * 0.5; value += step) {
+    ticks.push(Number(value.toFixed(4)));
+  }
+
+  return { yMin, yMax, ticks };
+}
+
+function drawInterpolatedLine(ctx, points, visibleRound, xPos, yPos) {
+  ctx.beginPath();
+  let lastIndex = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    if (points[index].round > visibleRound) break;
+    lastIndex = index;
+    if (index === 0) ctx.moveTo(xPos(points[index].round), yPos(points[index].value));
+    else ctx.lineTo(xPos(points[index].round), yPos(points[index].value));
+  }
+  if (lastIndex < points.length - 1) {
+    const fraction = visibleRound - points[lastIndex].round;
+    if (fraction > 0) {
+      const interpolatedValue = points[lastIndex].value
+        + (points[lastIndex + 1].value - points[lastIndex].value) * fraction;
+      ctx.lineTo(xPos(visibleRound), yPos(interpolatedValue));
+    }
+  }
+}
+
+function interpolatedPoint(points, visibleRound) {
+  const baseIndex = Math.floor(Math.min(visibleRound, points.length - 1));
+  let value = points[baseIndex].value;
+  if (baseIndex < points.length - 1) {
+    const fraction = visibleRound - points[baseIndex].round;
+    if (fraction > 0) {
+      value += (points[baseIndex + 1].value - points[baseIndex].value) * fraction;
+    }
+  }
+  return {
+    round: Math.min(visibleRound, points[points.length - 1].round),
+    value,
+  };
+}
+
 function drawDriftChart(chart, visibleRound) {
-  const { canvas, series } = chart;
+  const { canvas, series, maxRound } = chart;
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   canvas.width = rect.width * dpr;
   canvas.height = rect.height * dpr;
   ctx.scale(dpr, dpr);
-  const W = rect.width, H = rect.height;
-  ctx.clearRect(0, 0, W, H);
+  const width = rect.width;
+  const height = rect.height;
+  ctx.clearRect(0, 0, width, height);
 
-  let yMin = -2, yMax = 2;
-  for (const pts of Object.values(series)) {
-    for (const p of pts) {
-      if (p.value < yMin) yMin = p.value - 1;
-      if (p.value > yMax) yMax = p.value + 1;
-    }
-  }
-  const absMax = Math.max(Math.abs(yMin), Math.abs(yMax));
-  yMin = -absMax; yMax = absMax;
+  const { yMin, yMax, ticks } = getDriftYScale(series, maxRound);
 
-  const padL = 30, padR = 10, padT = 8, padB = 22;
-  const plotW = W - padL - padR, plotH = H - padT - padB;
-  const xPos = (r) => padL + (r / DRIFT_MAX_ROUND) * plotW;
-  const yPos = (v) => padT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+  const padL = 30;
+  const padR = 10;
+  const padT = 8;
+  const padB = 22;
+  const plotW = width - padL - padR;
+  const plotH = height - padT - padB;
+  const xPos = (round) => padL + (round / maxRound) * plotW;
+  const yPos = (value) => padT + plotH - ((value - yMin) / (yMax - yMin)) * plotH;
 
-  ctx.strokeStyle = "#e0d6c6"; ctx.lineWidth = 1;
-  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
-    ctx.beginPath(); ctx.moveTo(padL, yPos(v)); ctx.lineTo(W - padR, yPos(v)); ctx.stroke();
-  }
-  ctx.strokeStyle = "#c0b5a0"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(padL, yPos(0)); ctx.lineTo(W - padR, yPos(0)); ctx.stroke();
-
-  ctx.fillStyle = "#6f6251"; ctx.font = "10px Georgia, serif"; ctx.textAlign = "center";
-  for (let r = 0; r <= DRIFT_MAX_ROUND; r += 2) ctx.fillText(r.toString(), xPos(r), H - 4);
-  ctx.textAlign = "right";
-  for (let v = Math.ceil(yMin); v <= Math.floor(yMax); v++) {
-    ctx.fillText(v > 0 ? `+${v}` : v.toString(), padL - 5, yPos(v) + 3);
-  }
-
-  for (const [model, pts] of Object.entries(series)) {
-    const color = DRIFT_MODEL_COLORS[model] || "#999";
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5;
-    ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.strokeStyle = "#e0d6c6";
+  ctx.lineWidth = 1;
+  for (const value of ticks) {
     ctx.beginPath();
-    let lastI = 0;
-    for (let i = 0; i < pts.length; i++) {
-      if (pts[i].round > visibleRound) break;
-      lastI = i;
-      if (i === 0) ctx.moveTo(xPos(pts[i].round), yPos(pts[i].value));
-      else ctx.lineTo(xPos(pts[i].round), yPos(pts[i].value));
-    }
-    if (lastI < pts.length - 1) {
-      const frac = visibleRound - pts[lastI].round;
-      if (frac > 0) {
-        const interp = pts[lastI].value + (pts[lastI + 1].value - pts[lastI].value) * frac;
-        ctx.lineTo(xPos(visibleRound), yPos(interp));
+    ctx.moveTo(padL, yPos(value));
+    ctx.lineTo(width - padR, yPos(value));
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = "#c0b5a0";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(padL, yPos(0));
+  ctx.lineTo(width - padR, yPos(0));
+  ctx.stroke();
+
+  ctx.fillStyle = "#6f6251";
+  ctx.font = "10px Georgia, serif";
+  ctx.textAlign = "center";
+  const tickStep = maxRound <= 10 ? 1 : 2;
+  for (let round = 0; round <= maxRound; round += tickStep) {
+    ctx.fillText(round.toString(), xPos(round), height - 4);
+  }
+
+  ctx.textAlign = "right";
+  for (const value of ticks) {
+    const label = Number.isInteger(value) ? value.toString() : value.toFixed(1).replace(/\.0$/, "");
+    ctx.fillText(value > 0 ? `+${label}` : label, padL - 5, yPos(value) + 3);
+  }
+
+  for (const [model, modelSeries] of Object.entries(series)) {
+    const color = DRIFT_MODEL_COLORS[model] || "#999";
+
+    if (modelSeries.conditionCount > 1) {
+      const upperPoints = [];
+      const lowerPoints = [];
+      for (const point of modelSeries.band) {
+        if (point.round > visibleRound) break;
+        upperPoints.push(point);
+        lowerPoints.push(point);
+      }
+      const visibleUpper = upperPoints.length > 0 ? upperPoints[upperPoints.length - 1].round : 0;
+      if (visibleRound > visibleUpper && visibleUpper < maxRound) {
+        const nextPoint = modelSeries.band[visibleUpper + 1];
+        const prevPoint = modelSeries.band[visibleUpper];
+        const fraction = visibleRound - visibleUpper;
+        upperPoints.push({
+          round: visibleRound,
+          max: prevPoint.max + (nextPoint.max - prevPoint.max) * fraction,
+          min: prevPoint.min + (nextPoint.min - prevPoint.min) * fraction,
+        });
+      }
+
+      if (upperPoints.length > 1) {
+        ctx.fillStyle = `${color}22`;
+        ctx.beginPath();
+        upperPoints.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(xPos(point.round), yPos(point.max));
+          else ctx.lineTo(xPos(point.round), yPos(point.max));
+        });
+        for (let index = upperPoints.length - 1; index >= 0; index -= 1) {
+          const point = upperPoints[index];
+          ctx.lineTo(xPos(point.round), yPos(point.min));
+        }
+        ctx.closePath();
+        ctx.fill();
       }
     }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    drawInterpolatedLine(ctx, modelSeries.mean, visibleRound, xPos, yPos);
     ctx.stroke();
 
-    // Dot
-    let dotX = xPos(pts[lastI].round), dotY = yPos(pts[lastI].value);
-    if (lastI < pts.length - 1) {
-      const frac = visibleRound - pts[lastI].round;
-      if (frac > 0) {
-        dotY = yPos(pts[lastI].value + (pts[lastI + 1].value - pts[lastI].value) * frac);
-        dotX = xPos(visibleRound);
-      }
-    }
+    const dot = interpolatedPoint(modelSeries.mean, visibleRound);
     ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(dotX, dotY, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(xPos(dot.round), yPos(dot.value), 3.5, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  if (visibleRound > 0 && visibleRound <= DRIFT_MAX_ROUND) {
-    ctx.strokeStyle = "rgba(47,36,24,0.18)"; ctx.lineWidth = 1;
+  if (visibleRound > 0 && visibleRound <= maxRound) {
+    ctx.strokeStyle = "rgba(47,36,24,0.18)";
+    ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(xPos(visibleRound), padT); ctx.lineTo(xPos(visibleRound), H - padB); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(xPos(visibleRound), padT);
+    ctx.lineTo(xPos(visibleRound), height - padB);
+    ctx.stroke();
     ctx.setLineDash([]);
   }
 }
 
 function drawAllDrift(round) {
-  for (const c of driftCharts) drawDriftChart(c, round);
+  for (const chart of driftCharts) drawDriftChart(chart, round);
 }
 
 function initDrift(records) {
@@ -540,24 +735,31 @@ function initDrift(records) {
   const legendEl = document.getElementById("drift-legend");
   if (!grid || !legendEl) return;
 
-  // Legend
+  const models = [...new Set(records.map((record) => record.model_display).filter(Boolean))].sort();
   legendEl.innerHTML = "";
-  for (const [model, color] of Object.entries(DRIFT_MODEL_COLORS)) {
+  for (const model of models) {
+    const color = DRIFT_MODEL_COLORS[model] || "#999";
     legendEl.innerHTML += `<div class="drift-legend-item"><span class="drift-legend-swatch" style="background:${color}"></span>${escapeHtml(model)}</div>`;
   }
 
-  // Charts
   grid.innerHTML = "";
   driftCharts = [];
+  const maxRound = getDriftMaxRound(records);
   for (const dim of DRIFT_DIMS) {
     const card = document.createElement("div");
     card.className = "drift-chart-card";
     card.innerHTML = `<h3>${escapeHtml(dim.label)}</h3><p class="drift-poles">${dim.poles}</p>`;
     const canvas = document.createElement("canvas");
-    canvas.width = 400; canvas.height = 200;
+    canvas.width = 400;
+    canvas.height = 200;
     card.appendChild(canvas);
     grid.appendChild(card);
-    driftCharts.push({ canvas, series: computeDrift(records, dim), dim });
+    driftCharts.push({
+      canvas,
+      series: computeDrift(records, dim, maxRound),
+      dim,
+      maxRound,
+    });
   }
 
   driftFrame = 0;
@@ -567,13 +769,13 @@ function initDrift(records) {
   const btnPlay = document.getElementById("btn-play");
   const btnReset = document.getElementById("btn-reset");
 
-  function driftAnimate(ts) {
+  function driftAnimate(timestamp) {
     if (!driftPlaying) return;
-    if (ts - driftLastTick >= DRIFT_TICK_MS) {
-      driftLastTick = ts;
+    if (timestamp - driftLastTick >= DRIFT_TICK_MS) {
+      driftLastTick = timestamp;
       driftFrame += 0.5;
-      if (driftFrame > DRIFT_MAX_ROUND) {
-        driftFrame = DRIFT_MAX_ROUND;
+      if (driftFrame > maxRound) {
+        driftFrame = maxRound;
         driftPlaying = false;
         btnPlay.classList.remove("active");
         btnPlay.textContent = "Play";
@@ -583,19 +785,24 @@ function initDrift(records) {
     if (driftPlaying) requestAnimationFrame(driftAnimate);
   }
 
-  btnPlay.addEventListener("click", () => {
-    if (driftFrame >= DRIFT_MAX_ROUND) driftFrame = 0;
+  btnPlay.onclick = () => {
+    if (driftFrame >= maxRound) driftFrame = 0;
     driftPlaying = !driftPlaying;
     btnPlay.classList.toggle("active", driftPlaying);
     btnPlay.textContent = driftPlaying ? "Pause" : "Play";
-    if (driftPlaying) { driftLastTick = 0; requestAnimationFrame(driftAnimate); }
-  });
+    if (driftPlaying) {
+      driftLastTick = 0;
+      requestAnimationFrame(driftAnimate);
+    }
+  };
 
-  btnReset.addEventListener("click", () => {
-    driftPlaying = false; driftFrame = 0;
-    btnPlay.classList.remove("active"); btnPlay.textContent = "Play";
+  btnReset.onclick = () => {
+    driftPlaying = false;
+    driftFrame = 0;
+    btnPlay.classList.remove("active");
+    btnPlay.textContent = "Play";
     drawAllDrift(0);
-  });
+  };
 
   driftLastTick = 0;
   requestAnimationFrame(driftAnimate);

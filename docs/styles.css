@@ -277,6 +277,46 @@ h1 {
   padding-top: 4px;
 }
 
+.drift-condition-bar {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.drift-condition-label {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.drift-condition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drift-chip {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.drift-chip:hover,
+.drift-chip.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 .drift-btn {
   padding: 7px 16px;
   border: 1px solid var(--line);
@@ -319,7 +359,7 @@ h1 {
 .drift-grid {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 14px;
 }
 
@@ -351,7 +391,7 @@ h1 {
   margin-top: 20px;
   padding: 18px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 14px;
   align-items: end;
 }
@@ -378,6 +418,11 @@ h1 {
 
 .search-field {
   grid-column: span 2;
+}
+
+.condition-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .checkbox {
@@ -525,6 +570,30 @@ h1 {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   border: 1px solid transparent;
+}
+
+@media (max-width: 1100px) {
+  .controls {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .flow-and-dims,
+  .analysis-grid,
+  .drift-grid,
+  .dimension-grid,
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .search-field {
+    grid-column: span 1;
+  }
+
+  .drift-header {
+    flex-direction: column;
+  }
 }
 
 .round-badge,
