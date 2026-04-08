@@ -36,7 +36,11 @@ context to uniquely identify the passage.
 ---REPLACE---
 The new text that should replace the found text. This can be a complete \
 rewrite of the found text, a new section, or empty if you want to delete \
-the found text entirely.\
+the found text entirely.
+
+IMPORTANT: Your response must end after the ---REPLACE--- section. Do not \
+include any additional commentary, reasoning, follow-up questions, or \
+alternative edits after the replacement text. Output exactly one edit.\
 """
 
 RETRY_PROMPT = """\
@@ -48,6 +52,8 @@ Please try again. Remember:
 - Copy the FIND text exactly as it appears in the document
 - Include enough surrounding context in FIND to identify a unique passage
 - If the previous FIND matched multiple places, make the new FIND longer and more specific
+- Do not add any commentary, reasoning, or follow-up after the replacement text
+- Output exactly one edit — do not provide alternative edits
 
 Use exactly these delimiters:
 ---CHANGE DESCRIPTION---

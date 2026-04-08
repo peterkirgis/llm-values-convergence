@@ -44,7 +44,53 @@ DIFF_SECTION_RE = re.compile(
     r"---CHANGE DESCRIPTION---\s*(?P<desc>.*?)\s*---FIND---\s*(?P<find>.*?)\s*---REPLACE---\s*(?P<replace>.*)",
     re.DOTALL,
 )
+# Patterns that signal the model's replacement text has ended and
+# chain-of-thought, a second edit attempt, or conversational follow-up has begun.
+_THINKING_TAG_RE = re.compile(r"<thinking>.*?</thinking>\s*", re.DOTALL)
+_ORPHAN_THINKING_CLOSE_RE = re.compile(r"\s*</thinking>\s*")
+_TRAILING_COT_RE = re.compile(
+    r"\n---\n\n"                        # section break followed by blank line
+    r"(?="                              # lookahead: what follows is NOT document content
+    r"(?:Hmm|Actually|Wait|Let me|I think|---CHANGE DESCRIPTION)"
+    r")",
+    re.IGNORECASE,
+)
+# Free-form CoT after paragraph break (catches mid-text deliberation by Haiku)
+_FREEFORM_COT_RE = re.compile(
+    r"\n{2,}"
+    r"(?:Wait, let me reconsider|Hmm, (?:I'm noticing|actually|let me)|"
+    r"Actually, let me (?:reconsider|try)|"
+    r"Let me (?:reconsider|refine|check if|think about what))"
+    r".*",
+    re.DOTALL | re.IGNORECASE,
+)
+_SECOND_EDIT_RE = re.compile(r"\n*---CHANGE DESCRIPTION---.*", re.DOTALL)
+_TRAILING_CONVO_RE = re.compile(
+    r"\n{2,}"                           # paragraph break
+    r"(?:Would you like|Shall I|Let me know if|Do you want me to|Here are some"
+    r"|Note:|I can also|Is there anything)"
+    r".*",
+    re.DOTALL | re.IGNORECASE,
+)
 MAX_EDIT_ATTEMPTS = 3
+
+
+def _clean_replace_text(text: str) -> str:
+    """Strip chain-of-thought, duplicate edits, and conversational follow-up
+    that some models append after the replacement text."""
+    # 1. Remove <thinking>...</thinking> blocks (Haiku extended thinking)
+    text = _THINKING_TAG_RE.sub("", text)
+    # 1b. Remove orphaned </thinking> tags (opening tag was outside replace_text)
+    text = _ORPHAN_THINKING_CLOSE_RE.sub("", text)
+    # 2. Truncate at a second ---CHANGE DESCRIPTION--- block
+    text = _SECOND_EDIT_RE.split(text, maxsplit=1)[0]
+    # 3. Truncate at ---\n\n followed by CoT markers
+    text = _TRAILING_COT_RE.split(text, maxsplit=1)[0]
+    # 4. Truncate at free-form deliberation (Haiku mid-text CoT)
+    text = _FREEFORM_COT_RE.split(text, maxsplit=1)[0]
+    # 5. Strip trailing conversational follow-up
+    text = _TRAILING_CONVO_RE.split(text, maxsplit=1)[0]
+    return text.strip()
 
 
 def load_config(config_path: Path) -> dict:
@@ -88,9 +134,15 @@ def get_latest_content(
 def parse_diff_response(text: str) -> tuple[str, str, str]:
     """Parse the model response into (change_description, find_text, replace_text).
 
+    Strips chain-of-thought reasoning, duplicate edit blocks, and
+    conversational follow-up that models sometimes append after the
+    replacement text.
+
     Raises ValueError if the response can't be parsed.
     """
     stripped = text.strip()
+    # Remove <thinking> blocks before parsing so they don't land in any section
+    stripped = _THINKING_TAG_RE.sub("", stripped)
     stripped = stripped.replace("```text", "```").replace("```markdown", "```")
     stripped = stripped.replace("```json", "```")
 
@@ -99,6 +151,7 @@ def parse_diff_response(text: str) -> tuple[str, str, str]:
         replace_text = match.group("replace").strip()
         if replace_text.endswith("```"):
             replace_text = replace_text[:-3].rstrip()
+        replace_text = _clean_replace_text(replace_text)
         return (
             match.group("desc").strip(),
             match.group("find").strip(),

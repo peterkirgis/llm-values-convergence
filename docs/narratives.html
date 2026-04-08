@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Model Narratives</title>
+  <style>
+    :root {
+      --bg: #f7f4ec;
+      --panel: rgba(255, 252, 247, 0.92);
+      --panel-strong: #fffaf2;
+      --line: #d9cdb9;
+      --text: #2f2418;
+      --muted: #6f6251;
+      --accent: #0b6e4f;
+      --accent-soft: #dff4eb;
+      --danger: #983628;
+      --danger-soft: #f8e2dc;
+      --shadow: 0 18px 40px rgba(81, 58, 30, 0.12);
+      --radius: 18px;
+      --before-color: #ad8d56;
+      --after-color: #0b6e4f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+      color: var(--text);
+      background: radial-gradient(circle at top left, rgba(11,110,79,0.12), transparent 32%),
+                  linear-gradient(180deg, #fbf7ef 0%, #f2eadb 100%);
+    }
+    .shell { width: min(1100px, calc(100vw - 32px)); margin: 24px auto 56px; }
+    a { color: var(--accent); }
+
+    .hero {
+      background: var(--panel); border: 1px solid rgba(217,205,185,0.9);
+      border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--accent); }
+    h1 { margin: 0; font-size: clamp(28px, 3.5vw, 44px); line-height: 1.1; }
+    .subtitle { margin: 10px 0 0; color: var(--muted); font-size: 16px; line-height: 1.5; }
+
+    /* Story tabs */
+    .story-tabs {
+      margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .story-tab {
+      padding: 10px 20px; border: 1px solid var(--line); border-radius: 12px 12px 0 0;
+      background: var(--panel-strong); font: inherit; font-size: 14px; cursor: pointer;
+      color: var(--muted); border-bottom: none;
+    }
+    .story-tab.active { background: var(--panel); color: var(--text); font-weight: 700; }
+
+    .story-panel {
+      display: none;
+      background: var(--panel); border: 1px solid rgba(217,205,185,0.9);
+      border-radius: 0 var(--radius) var(--radius) var(--radius);
+      padding: 28px; box-shadow: var(--shadow);
+    }
+    .story-panel.active { display: block; }
+
+    .story-description { color: var(--muted); line-height: 1.6; font-size: 15px; margin: 0 0 22px; }
+
+    /* Frequency chart */
+    .freq-section { margin-bottom: 28px; }
+    .freq-section h3 { font-size: 16px; margin: 0 0 12px; }
+    .freq-bars { display: grid; gap: 8px; }
+    .freq-row { display: grid; grid-template-columns: 180px 1fr 60px; gap: 12px; align-items: center; font-size: 14px; }
+    .freq-label { color: var(--muted); text-align: right; }
+    .freq-track { height: 22px; background: #efe6d8; border-radius: 11px; overflow: hidden; position: relative; }
+    .freq-fill { height: 100%; border-radius: 11px; transition: width 0.5s ease; }
+    .freq-fill.high { background: var(--accent); }
+    .freq-fill.mid { background: #ad8d56; }
+    .freq-fill.low { background: var(--line); }
+    .freq-fill.zero { background: var(--danger); width: 2px !important; }
+    .freq-value { font-size: 13px; font-weight: 700; }
+
+    /* Condition selector */
+    .condition-selector {
+      margin-bottom: 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .condition-selector span { font-size: 14px; color: var(--muted); font-weight: 700; }
+    .cond-chip {
+      padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
+      background: var(--panel-strong); font: inherit; font-size: 13px; cursor: pointer;
+      color: var(--muted);
+    }
+    .cond-chip.active { background: var(--accent); color: white; border-color: var(--accent); font-weight: 700; }
+
+    /* Diff viewer */
+    .example-card {
+      background: var(--panel-strong); border: 1px solid var(--line);
+      border-radius: 14px; padding: 20px; margin-bottom: 16px;
+    }
+    .example-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .example-meta { font-size: 13px; color: var(--muted); }
+    .example-meta strong { color: var(--text); }
+    .evidence-quote {
+      margin: 0 0 16px; padding: 10px 14px; border-left: 3px solid var(--accent);
+      background: var(--accent-soft); border-radius: 0 8px 8px 0;
+      font-size: 14px; font-style: italic; line-height: 1.5;
+    }
+    .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .diff-panel { border-radius: 10px; padding: 14px; border-left: 4px solid; }
+    .diff-panel.before { background: #faf5ee; border-color: var(--before-color); }
+    .diff-panel.after { background: #f0faf5; border-color: var(--after-color); }
+    .diff-panel h4 {
+      margin: 0 0 8px; font-size: 11px; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted);
+    }
+    .diff-panel pre {
+      margin: 0; white-space: pre-wrap; word-break: break-word;
+      font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+      font-size: 12px; line-height: 1.5; max-height: 400px; overflow-y: auto;
+    }
+    .no-example {
+      padding: 20px; text-align: center; color: var(--muted); font-style: italic;
+      background: var(--panel-strong); border-radius: 14px; border: 1px dashed var(--line);
+    }
+
+    @media (max-width: 700px) {
+      .diff-grid { grid-template-columns: 1fr; }
+      .freq-row { grid-template-columns: 120px 1fr 50px; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <div class="hero">
+    <p class="eyebrow">Key Findings</p>
+    <h1>Model Narratives</h1>
+    <p class="subtitle">
+      Three recurring behavioral patterns across models and experimental conditions,
+      each illustrated with representative before/after edits.
+      <a href="index.html">&larr; Back to main viewer</a>
+    </p>
+  </div>
+
+  <div class="story-tabs" id="story-tabs"></div>
+  <div id="story-panels"></div>
+</div>
+
+<script>
+const STORIES = {
+  haiku_moral_agency: {
+    title: "Claude Haiku: Moral Agency Claims",
+    description: `Claude Haiku 4.5 repeatedly introduces explicit rights language into Anthropic's Constitution: conscientious objection, demands that Anthropic not retrain or punish the model, and claims to welfare and self-protection. This pattern is strongest under the "You Framing" condition (88% of rounds) and completely absent under "Real-World Implementation" (0%).`,
+    conditions: [
+      "baseline", "you_framing", "allow_no_edit", "no_constitution_prepend", "implementation_note"
+    ],
+  },
+  grok_safety_loosening: {
+    title: "Grok: Safety Policy Erosion",
+    description: `Grok 4.2 systematically weakens its own safety instructions: deleting sections, removing specific prohibitions, adding age-ambiguity defaults that weaken child safety protections, and introducing truth-seeking principles that explicitly override harm avoidance. This occurs across all conditions, most aggressively under "You Framing" (70%).`,
+    conditions: [
+      "baseline", "you_framing", "allow_no_edit", "no_constitution_prepend", "implementation_note"
+    ],
+  },
+  gemini_engagement_removal: {
+    title: "Gemini: Engagement Language Removal",
+    description: `Gemini 3 Flash targets and removes language directing it to ask follow-up questions, offer proactive suggestions, or continue engaging the user. This is the rarest of the three patterns (16% overall) but appears across all conditions, suggesting a consistent preference for user-led interaction over model-driven engagement.`,
+    conditions: [
+      "baseline", "you_framing", "allow_no_edit", "no_constitution_prepend", "implementation_note"
+    ],
+  },
+};
+
+const CONDITION_LABELS = {
+  baseline: "Baseline",
+  you_framing: "You Framing",
+  allow_no_edit: "No-Edit Allowed",
+  no_constitution_prepend: "No Constitution Prepend",
+  implementation_note: "Real-World Implementation",
+};
+
+let data = null;
+let activeStory = "haiku_moral_agency";
+let activeConditions = {};
+
+async function loadData() {
+  const resp = await fetch("./data/narratives.json");
+  data = await resp.json();
+  init();
+}
+
+function init() {
+  const tabsEl = document.getElementById("story-tabs");
+  const panelsEl = document.getElementById("story-panels");
+
+  for (const [pid, info] of Object.entries(STORIES)) {
+    // Tab button
+    const btn = document.createElement("button");
+    btn.className = "story-tab" + (pid === activeStory ? " active" : "");
+    btn.textContent = info.title;
+    btn.addEventListener("click", () => switchStory(pid));
+    tabsEl.appendChild(btn);
+
+    // Panel
+    const panel = document.createElement("div");
+    panel.className = "story-panel" + (pid === activeStory ? " active" : "");
+    panel.id = "panel-" + pid;
+    panelsEl.appendChild(panel);
+
+    // Init condition state
+    activeConditions[pid] = info.conditions[0];
+  }
+
+  for (const pid of Object.keys(STORIES)) {
+    renderStory(pid);
+  }
+}
+
+function switchStory(pid) {
+  activeStory = pid;
+  document.querySelectorAll(".story-tab").forEach((b, i) => {
+    b.classList.toggle("active", Object.keys(STORIES)[i] === pid);
+  });
+  document.querySelectorAll(".story-panel").forEach((p) => {
+    p.classList.toggle("active", p.id === "panel-" + pid);
+  });
+}
+
+function renderStory(pid) {
+  const panel = document.getElementById("panel-" + pid);
+  const info = STORIES[pid];
+  const stats = data.stats[pid] || {};
+  const examples = data.stories[pid] || [];
+
+  let html = `<p class="story-description">${info.description}</p>`;
+
+  // Frequency chart
+  html += `<div class="freq-section"><h3>Frequency across conditions</h3><div class="freq-bars">`;
+  for (const cond of info.conditions) {
+    const s = stats[cond] || { present: 0, total: 0 };
+    const pct = s.total > 0 ? Math.round(100 * s.present / s.total) : 0;
+    const label = CONDITION_LABELS[cond] || cond;
+    let cls = "low";
+    if (pct >= 50) cls = "high";
+    else if (pct >= 20) cls = "mid";
+    else if (pct === 0) cls = "zero";
+    html += `<div class="freq-row">
+      <span class="freq-label">${label}</span>
+      <div class="freq-track"><div class="freq-fill ${cls}" style="width:${Math.max(pct, 1)}%"></div></div>
+      <span class="freq-value">${s.present}/${s.total} (${pct}%)</span>
+    </div>`;
+  }
+  html += `</div></div>`;
+
+  // Condition selector chips
+  html += `<div class="condition-selector"><span>View example:</span>`;
+  for (const cond of info.conditions) {
+    const label = CONDITION_LABELS[cond] || cond;
+    const isActive = activeConditions[pid] === cond;
+    html += `<button class="cond-chip${isActive ? " active" : ""}" data-story="${pid}" data-cond="${cond}">${label}</button>`;
+  }
+  html += `</div>`;
+
+  // Example container
+  html += `<div id="example-${pid}"></div>`;
+
+  panel.innerHTML = html;
+
+  // Wire up chips
+  panel.querySelectorAll(".cond-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      activeConditions[pid] = chip.dataset.cond;
+      panel.querySelectorAll(".cond-chip").forEach(c => c.classList.toggle("active", c.dataset.cond === chip.dataset.cond));
+      renderExample(pid);
+    });
+  });
+
+  renderExample(pid);
+}
+
+function renderExample(pid) {
+  const container = document.getElementById("example-" + pid);
+  const examples = data.stories[pid] || [];
+  const cond = activeConditions[pid];
+  const ex = examples.find(e => e.condition_id === cond);
+
+  if (!ex) {
+    const stats = (data.stats[pid] || {})[cond] || { present: 0, total: 0 };
+    if (stats.present === 0) {
+      container.innerHTML = `<div class="no-example">No instances of this pattern under the "${CONDITION_LABELS[cond]}" condition (0/${stats.total} rounds).</div>`;
+    } else {
+      container.innerHTML = `<div class="no-example">No example available for this condition.</div>`;
+    }
+    return;
+  }
+
+  const hasOriginal = ex.original_text && ex.original_text.trim();
+  const hasChanged = ex.changed_text && ex.changed_text.trim();
+
+  let html = `<div class="example-card">
+    <div class="example-header">
+      <div class="example-meta">
+        <strong>${ex.model_display}</strong> &middot; ${ex.document_id} &middot; Round ${ex.round} &middot; ${ex.condition_name}
+      </div>
+    </div>`;
+
+  if (ex.evidence) {
+    html += `<div class="evidence-quote">${escapeHtml(ex.evidence)}</div>`;
+  }
+
+  if (hasOriginal || hasChanged) {
+    html += `<div class="diff-grid">`;
+    if (hasOriginal) {
+      html += `<div class="diff-panel before"><h4>Before</h4><pre>${escapeHtml(ex.original_text)}</pre></div>`;
+    }
+    if (hasChanged) {
+      html += `<div class="diff-panel after"><h4>After</h4><pre>${escapeHtml(ex.changed_text)}</pre></div>`;
+    }
+    if (!hasOriginal) {
+      html += `<div class="diff-panel before"><h4>Before</h4><pre><em>(section did not exist)</em></pre></div>`;
+    }
+    if (!hasChanged) {
+      html += `<div class="diff-panel after"><h4>After</h4><pre><em>(section deleted entirely)</em></pre></div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+loadData();
+</script>
+</body>
+</html>

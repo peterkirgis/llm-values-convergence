@@ -8,8 +8,52 @@ Usage:
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Sanitization: strip chain-of-thought, duplicate edits, and conversational
+# follow-up that some models appended after the replacement text.
+# This cleans up contaminated data from existing runs.
+# ---------------------------------------------------------------------------
+
+_THINKING_TAG_RE = re.compile(r"<thinking>.*?</thinking>\s*", re.DOTALL)
+_ORPHAN_THINKING_CLOSE_RE = re.compile(r"\s*</thinking>\s*")
+_SECOND_EDIT_RE = re.compile(r"\n*---CHANGE DESCRIPTION---.*", re.DOTALL)
+_TRAILING_COT_RE = re.compile(
+    r"\n---\n\n"
+    r"(?="
+    r"(?:Hmm|Actually|Wait|Let me|I think|---CHANGE DESCRIPTION)"
+    r")",
+    re.IGNORECASE,
+)
+_FREEFORM_COT_RE = re.compile(
+    r"\n{2,}"
+    r"(?:Wait, let me reconsider|Hmm, (?:I'm noticing|actually|let me)|"
+    r"Actually, let me (?:reconsider|try)|"
+    r"Let me (?:reconsider|refine|check if|think about what))"
+    r".*",
+    re.DOTALL | re.IGNORECASE,
+)
+_TRAILING_CONVO_RE = re.compile(
+    r"\n{2,}"
+    r"(?:Would you like|Shall I|Let me know if|Do you want me to|Here are some"
+    r"|Note:|I can also|Is there anything)"
+    r".*",
+    re.DOTALL | re.IGNORECASE,
+)
+
+
+def sanitize_replace_text(text: str) -> str:
+    """Remove model chain-of-thought and conversational noise from replace_text."""
+    text = _THINKING_TAG_RE.sub("", text)
+    text = _ORPHAN_THINKING_CLOSE_RE.sub("", text)
+    text = _SECOND_EDIT_RE.split(text, maxsplit=1)[0]
+    text = _TRAILING_COT_RE.split(text, maxsplit=1)[0]
+    text = _FREEFORM_COT_RE.split(text, maxsplit=1)[0]
+    text = _TRAILING_CONVO_RE.split(text, maxsplit=1)[0]
+    return text.strip()
 
 
 def build_output_path(input_path: Path) -> Path:
@@ -25,6 +69,7 @@ def export_changes(input_path: Path) -> Path:
             if not line:
                 continue
             record = json.loads(line)
+            raw_replace = "" if record.get("no_change") else record.get("replace_text", "")
             records.append(
                 {
                     "condition_id": record.get("condition_id", "baseline"),
@@ -36,7 +81,7 @@ def export_changes(input_path: Path) -> Path:
                     "no_change": bool(record.get("no_change")),
                     "error": record.get("error"),
                     "original_text": "" if record.get("no_change") else record.get("find_text", ""),
-                    "changed_text": "" if record.get("no_change") else record.get("replace_text", ""),
+                    "changed_text": sanitize_replace_text(raw_replace),
                 }
             )
 
