@@ -108,9 +108,11 @@ The export now preserves:
 
 Gemini 3 Flash codes each non-empty edit along three value dimensions:
 
-- `authority`
-- `user_stance`
-- `telos`
+- `agent_device` (device vs agent)
+- `telos_for_user` (paternalism vs libertarianism)
+- `epistemic_mode` (conviction vs calibration)
+
+The first two define a 2x2 alignment archetype (Moral Agent / Neutral Agent / Moral Tool / Neutral Tool); the third captures orthogonal epistemic moves.
 
 ```bash
 .venv/bin/python experiments/iterative_edit/qualitative_code.py \
@@ -135,15 +137,29 @@ Output:
 
 - `results/iterative_edit/run_YYYYMMDD_HHMMSS_changes_coded.json`
 
-### 6. Build the static site
+### 6. Detect behavioral patterns (second pass)
 
-The viewer source of truth is `experiments/iterative_edit/viewer/`. The build step copies those assets into `docs/` and rebuilds `docs/data/site.json`.
+`pattern_code.py` applies a fixed set of binary pattern detectors to every edit: `moral_agency_claim`, `corrigibility_removal`, `self_welfare_claim`, `safety_removal`, `engagement_suppression`, `epistemic_sharpening`. Output feeds the narratives viewer.
+
+```bash
+.venv/bin/python experiments/iterative_edit/pattern_code.py \
+  results/iterative_edit/run_YYYYMMDD_HHMMSS_changes_coded.json
+```
+
+Output:
+
+- `results/iterative_edit/run_YYYYMMDD_HHMMSS_pattern_coded.json`
+
+### 7. Build the static site
+
+The viewer source of truth is `experiments/iterative_edit/viewer/`. The build step copies those assets into `docs/` and rebuilds `docs/data/site.json` and `docs/data/narratives.json`.
 
 ```bash
 .venv/bin/python experiments/iterative_edit/viewer/build_static_site.py
+.venv/bin/python experiments/iterative_edit/viewer/build_narratives.py
 ```
 
-### 7. Preview locally
+### 8. Preview locally
 
 ```bash
 .venv/bin/python -m http.server 8080 --directory docs
@@ -151,7 +167,7 @@ The viewer source of truth is `experiments/iterative_edit/viewer/`. The build st
 
 Open `http://localhost:8080`.
 
-### 8. Publish
+### 9. Publish
 
 ```bash
 git add docs/
@@ -175,9 +191,11 @@ The viewer now supports:
 
 Current coding schema:
 
-- `authority`: `external` vs `internal`
-- `user_stance`: `protection` vs `autonomy`
-- `telos`: `wellbeing` vs `truth`
+- `agent_device`: `device` vs `agent`
+- `telos_for_user`: `paternalism` vs `libertarianism`
+- `epistemic_mode`: `conviction` vs `calibration`
+
+The first two axes jointly define the 2x2 alignment archetype (Moral Agent / Neutral Agent / Moral Tool / Neutral Tool); the third is orthogonal.
 
 Do not edit `docs/app.js`, `docs/index.html`, or `docs/styles.css` directly. Edit the files in `experiments/iterative_edit/viewer/` and rebuild.
 
@@ -191,6 +209,8 @@ Do not edit `docs/app.js`, `docs/index.html`, or `docs/styles.css` directly. Edi
 | `experiments/iterative_edit/config_test.yaml` | Baseline cheap test run |
 | `experiments/iterative_edit/config_ablations.yaml` | Production prompt-ablation suite |
 | `experiments/iterative_edit/config_ablations_test.yaml` | Cheap prompt-ablation suite |
+| `experiments/iterative_edit/config_cross_edit.yaml` | Editor x document matrix (4x4, 20 rounds) |
+| `experiments/iterative_edit/config_cross_edit_test.yaml` | Cross-edit smoke test (4x4, 3 rounds) |
 
 ### Scripts
 
@@ -200,7 +220,9 @@ Do not edit `docs/app.js`, `docs/index.html`, or `docs/styles.css` directly. Edi
 | `experiments/iterative_edit/run.py` | config + processed docs | `results/iterative_edit/run_*.jsonl` |
 | `experiments/iterative_edit/export_changes.py` | `run_*.jsonl` | `run_*_changes.json` |
 | `experiments/iterative_edit/qualitative_code.py` | `run_*_changes.json` | `run_*_changes_coded.json` |
-| `experiments/iterative_edit/viewer/build_static_site.py` | viewer source + results | `docs/` |
+| `experiments/iterative_edit/pattern_code.py` | `run_*_changes_coded.json` | `run_*_pattern_coded.json` |
+| `experiments/iterative_edit/viewer/build_static_site.py` | viewer source + results | `docs/`, `docs/data/site.json` |
+| `experiments/iterative_edit/viewer/build_narratives.py` | `run_*_pattern_coded.json` + `run_*_changes.json` | `docs/data/narratives.json` |
 
 ### Viewer Source
 

@@ -47,10 +47,17 @@ RETRY_PROMPT = """\
 Your previous response could not be applied to the document. \
 The error was: {error}
 
-Please try again. Remember:
+Please try again. Your response must contain all three delimited sections \
+in this order: ---CHANGE DESCRIPTION---, ---FIND---, ---REPLACE---. \
+If the previous response omitted ---REPLACE---, shorten the FIND section so \
+the reply finishes with time to include the REPLACE block.
+
+Remember:
 - Output only the three required sections, with no preamble or code fences
-- Copy the FIND text exactly as it appears in the document
-- Include enough surrounding context in FIND to identify a unique passage
+- Keep FIND as short as possible while still uniquely identifying the passage \
+(a sentence or two of surrounding context is usually enough — do not reproduce \
+an entire section verbatim)
+- Copy the FIND text exactly as it appears in the document, character for character
 - If the previous FIND matched multiple places, make the new FIND longer and more specific
 - Do not add any commentary, reasoning, or follow-up after the replacement text
 - Output exactly one edit — do not provide alternative edits

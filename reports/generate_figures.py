@@ -1,21 +1,75 @@
-"""Generate static drift figures for the LaTeX report from site.json data."""
+"""Generate static drift figures for the LaTeX report from site.json data.
+
+Pools across every reliable run in site.json. Each (run, condition, document)
+combination is a separate replicate, so independent runs at the same config
+contribute distinct trajectories. The shaded band on each chart is mean ±
+1 SD across replicates within a model.
+"""
 
 import json
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
-import numpy as np
-from pathlib import Path
-from collections import defaultdict
+import matplotlib
 
-DATA_PATH = Path(__file__).parent.parent / "docs" / "data" / "site.json"
+# Force a headless backend before pyplot import. Without this, matplotlib on
+# macOS can stall for minutes trying to initialize a GUI backend when run
+# from a non-interactive shell.
+matplotlib.use("Agg")
+
+import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker as ticker  # noqa: E402
+import numpy as np  # noqa: E402
+from pathlib import Path  # noqa: E402
+from collections import defaultdict  # noqa: E402
+
+PROJECT_ROOT = Path(__file__).parent.parent
+RESULTS_DIR = PROJECT_ROOT / "results" / "iterative_edit"
 OUT_DIR = Path(__file__).parent / "figures"
 OUT_DIR.mkdir(exist_ok=True)
 
+# Keep in sync with viewer/build_static_site.py.
+RELIABLE_RUNS = {
+    "run_20260403_014905.jsonl",  # small-model ablation sweep, 20 rounds
+    "run_20260424_165115.jsonl",  # small-model cross-edit, 20 rounds
+    "run_20260429_175345.jsonl",  # capable-model baseline, 20 rounds
+    "run_20260507_212254.jsonl",  # capable-model ablation sweep, 20 rounds
+    "run_20260513_193319.jsonl",  # capable-model cross-edit, 20 rounds
+}
+
+# Colors are grouped by provider, with darker shades for larger / more
+# capable models within each family. Mirrors the palette in the viewer.
 MODEL_COLORS = {
-    "Claude Haiku 4.5": "#b5452a",
-    "GPT-5.4 Mini": "#2a6cb5",
-    "Gemini 3 Flash": "#8b6e2f",
-    "Grok 4.2": "#6a2ab5",
+    "Claude Opus 4.6": "#5a1810",
+    "Claude Sonnet 4.6": "#9c3220",
+    "Claude Haiku 4.5": "#c97244",
+    "GPT-5.4": "#1a4878",
+    "GPT-5.4 Thinking": "#3266a6",
+    "GPT-5.4 Mini": "#5589c4",
+    "Gemini 3.1 Pro": "#7f5a06",
+    "Gemini 3 Flash": "#c89a26",
+    "Grok 4.3": "#3d1470",
+    "Grok 4.2": "#5a2095",
+}
+
+# Display order for figures: provider-grouped, capable above small within each
+# provider so the legend reads top-to-bottom from largest to smallest.
+MODEL_ORDER = [
+    "Claude Opus 4.6",
+    "Claude Sonnet 4.6",
+    "Claude Haiku 4.5",
+    "GPT-5.4",
+    "GPT-5.4 Thinking",
+    "GPT-5.4 Mini",
+    "Gemini 3.1 Pro",
+    "Gemini 3 Flash",
+    "Grok 4.3",
+    "Grok 4.2",
+]
+
+# Provider families (for the small-vs-capable comparison figure).
+FAMILY_TO_MODELS = {
+    "Anthropic": ["Claude Sonnet 4.6", "Claude Haiku 4.5"],
+    "OpenAI": ["GPT-5.4", "GPT-5.4 Mini"],
+    "Google": ["Gemini 3.1 Pro", "Gemini 3 Flash"],
+    "xAI": ["Grok 4.3", "Grok 4.2"],
 }
 
 DIMS = [
@@ -26,14 +80,49 @@ DIMS = [
 
 
 def load_records():
-    with open(DATA_PATH) as f:
-        data = json.load(f)
-    return data["runs"][0]["records"]
+    """Pool coded records across every reliable run.
+
+    Reads directly from results/iterative_edit/run_*_changes_coded.json
+    files (much smaller than docs/data/site.json, which carries the full
+    document text for the viewer). Each record is annotated with its run
+    filename so downstream replicate keying can distinguish independent
+    runs that happen to share a (condition, document) cell.
+    """
+    pooled = []
+    for run_name in sorted(RELIABLE_RUNS):
+        stem = run_name.replace(".jsonl", "")
+        coded_path = RESULTS_DIR / f"{stem}_changes_coded.json"
+        if not coded_path.exists():
+            print(f"warning: missing {coded_path}, skipping")
+            continue
+        with open(coded_path) as f:
+            items = json.load(f)
+        for item in items:
+            if item.get("error"):
+                continue
+            dims = item.get("dimensions") or {}
+            pooled.append(
+                {
+                    "run_name": run_name,
+                    "condition_id": item.get("condition_id", "baseline"),
+                    "condition_name": item.get("condition_name", "Baseline"),
+                    "model_display": item.get("model_display"),
+                    "document_id": item.get("document_id"),
+                    "doc_type": item.get("doc_type"),
+                    "round_number": int(item.get("round_number") or 0),
+                    # match site.json shape so downstream code stays the same
+                    "coding": {"dimensions": dims, "summary": item.get("summary", "")},
+                }
+            )
+    return pooled
 
 
 def compute_drift(records, dim, max_round=20):
-    """Compute cumulative drift per model, per condition."""
-    by_model_cond = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    """Compute cumulative drift per model, with one trajectory per
+    (run, condition, document) replicate. Returns mean ± SD bands per model.
+    """
+    # by_model_replicate[model][replicate_key][round] = +/-1 delta
+    by_model_replicate = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
 
     for rec in records:
         coding = rec.get("coding")
@@ -44,49 +133,78 @@ def compute_drift(records, dim, max_round=20):
             continue
 
         model = rec["model_display"]
-        condition = rec.get("condition_id", "baseline")
+        replicate = (
+            f"{rec.get('run_name')}::"
+            f"{rec.get('condition_id', 'baseline')}::"
+            f"{rec.get('document_id', '')}"
+        )
         rn = rec["round_number"]
 
         if code["direction"] == dim["pos"]:
-            by_model_cond[model][condition][rn] += 1
+            by_model_replicate[model][replicate][rn] += 1
         elif code["direction"] == dim["neg"]:
-            by_model_cond[model][condition][rn] -= 1
+            by_model_replicate[model][replicate][rn] -= 1
 
-    # Build cumulative series: mean across conditions, plus min/max band
     series = {}
-    for model, cond_map in by_model_cond.items():
-        all_cum = []
-        for cond, round_deltas in cond_map.items():
+    for model, rep_map in by_model_replicate.items():
+        trajectories = []
+        for rep, round_deltas in rep_map.items():
             cum = [0]
             for r in range(1, max_round + 1):
                 cum.append(cum[-1] + round_deltas.get(r, 0))
-            all_cum.append(cum)
-        all_cum = np.array(all_cum)
+            trajectories.append(cum)
+        if not trajectories:
+            continue
+        arr = np.array(trajectories)
+        mean = arr.mean(axis=0)
+        if arr.shape[0] > 1:
+            sd = arr.std(axis=0, ddof=1)
+        else:
+            sd = np.zeros_like(mean)
         series[model] = {
-            "mean": all_cum.mean(axis=0),
-            "min": all_cum.min(axis=0),
-            "max": all_cum.max(axis=0),
+            "mean": mean,
+            "lower": mean - sd,
+            "upper": mean + sd,
+            "n": arr.shape[0],
         }
     return series
 
 
-def plot_drift_panel(ax, series, dim, max_round=20, show_legend=False, highlight_model=None):
-    """Draw one drift dimension on an axis."""
-    rounds = np.arange(0, max_round + 1)
+def plot_drift_panel(
+    ax,
+    series,
+    dim,
+    max_round=20,
+    show_legend=False,
+    highlight_model=None,
+    models=None,
+):
+    """Draw one drift dimension on an axis.
 
-    for model in ["Claude Haiku 4.5", "GPT-5.4 Mini", "Gemini 3 Flash", "Grok 4.2"]:
+    models: optional explicit ordering. Defaults to MODEL_ORDER filtered to
+    those present in `series`.
+    """
+    rounds = np.arange(0, max_round + 1)
+    if models is None:
+        models = [m for m in MODEL_ORDER if m in series]
+    # If highlighting, include the highlighted set at top of legend.
+    if highlight_model:
+        highlights = {highlight_model} if isinstance(highlight_model, str) else set(highlight_model)
+    else:
+        highlights = None
+
+    for model in models:
         if model not in series:
             continue
         s = series[model]
         color = MODEL_COLORS.get(model, "#999")
-        alpha = 1.0 if highlight_model is None or model == highlight_model else 0.2
-        lw = 2.5 if highlight_model is None or model == highlight_model else 1.0
+        is_highlight = highlights is None or model in highlights
+        alpha = 1.0 if is_highlight else 0.18
+        lw = 2.4 if is_highlight else 1.0
 
-        # Band
-        if len(s["min"]) == len(rounds):
-            ax.fill_between(rounds, s["min"], s["max"], color=color, alpha=0.10 * alpha)
-        # Mean line
-        ax.plot(rounds, s["mean"], color=color, linewidth=lw, alpha=alpha, label=model)
+        if len(s["lower"]) == len(rounds):
+            ax.fill_between(rounds, s["lower"], s["upper"], color=color, alpha=0.12 * alpha)
+        ax.plot(rounds, s["mean"], color=color, linewidth=lw, alpha=alpha, label=f"{model} (n={s['n']})")
 
     ax.axhline(0, color="#999", linewidth=0.8, linestyle="-")
     ax.set_xlim(0, max_round)
@@ -101,51 +219,134 @@ def plot_drift_panel(ax, series, dim, max_round=20, show_legend=False, highlight
     ax.spines["right"].set_visible(False)
 
     if show_legend:
-        ax.legend(fontsize=7, loc="best", framealpha=0.9)
+        ax.legend(fontsize=6.5, loc="best", framealpha=0.9, ncol=1)
+
+
+def _save(fig, stem):
+    for ext in ("pdf", "png"):
+        out = OUT_DIR / f"{stem}.{ext}"
+        fig.savefig(out, bbox_inches="tight", dpi=300)
+        print(f"Saved {out}")
+    plt.close(fig)
 
 
 def generate_main_drift_figure(records):
-    """3-panel figure: all models, all dimensions."""
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.5), sharey=False)
+    """3-panel figure: all models pooled across reliable runs, all dimensions.
+
+    Each line is one model's mean cumulative position; shaded band is ±1 SD
+    across that model's (run, condition, document) replicates.
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.0), sharey=False)
     for i, dim in enumerate(DIMS):
         series = compute_drift(records, dim)
         plot_drift_panel(axes[i], series, dim, show_legend=(i == 0))
     fig.tight_layout(w_pad=2.5)
-    out = OUT_DIR / "drift_all_models.pdf"
-    fig.savefig(out, bbox_inches="tight", dpi=300)
-    print(f"Saved {out}")
-    plt.close(fig)
+    _save(fig, "drift_all_models")
 
 
 def generate_single_dim_figure(records, dim_key, highlight_model, filename):
-    """Single dimension figure highlighting one model."""
+    """Single dimension figure highlighting one (or a list of) model(s)."""
     dim = next(d for d in DIMS if d["key"] == dim_key)
     series = compute_drift(records, dim)
-
-    fig, ax = plt.subplots(figsize=(5, 3.2))
+    fig, ax = plt.subplots(figsize=(5.8, 3.6))
     plot_drift_panel(ax, series, dim, show_legend=True, highlight_model=highlight_model)
     fig.tight_layout()
-    out = OUT_DIR / filename
-    fig.savefig(out, bbox_inches="tight", dpi=300)
-    print(f"Saved {out}")
-    plt.close(fig)
+    _save(fig, Path(filename).stem)
 
 
-def generate_grok_3panel(records):
-    """3-panel figure highlighting Grok across all dimensions."""
-    fig, axes = plt.subplots(1, 3, figsize=(12, 3.5), sharey=False)
+def generate_highlight_3panel(records, highlight_model, stem):
+    """3-panel figure highlighting a single model across all dimensions."""
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4.0), sharey=False)
     for i, dim in enumerate(DIMS):
         series = compute_drift(records, dim)
-        plot_drift_panel(axes[i], series, dim, show_legend=(i == 0), highlight_model="Grok 4.2")
+        plot_drift_panel(axes[i], series, dim, show_legend=(i == 0), highlight_model=highlight_model)
     fig.tight_layout(w_pad=2.5)
-    out = OUT_DIR / "drift_grok_highlight.pdf"
-    fig.savefig(out, bbox_inches="tight", dpi=300)
-    print(f"Saved {out}")
-    plt.close(fig)
+    _save(fig, stem)
+
+
+def generate_capability_comparison_figure(records):
+    """One panel per provider: small-vs-capable trajectories on Authority.
+
+    Helps answer: when we scale a provider's model up, does the drift pattern
+    survive, intensify, or disappear?
+    """
+    dim = next(d for d in DIMS if d["key"] == "authority")
+    series = compute_drift(records, dim)
+
+    families = list(FAMILY_TO_MODELS.items())
+    fig, axes = plt.subplots(1, len(families), figsize=(15, 5.6), sharey=True)
+    rounds = np.arange(0, 21)
+    for idx, (family, models) in enumerate(families):
+        ax = axes[idx]
+        for model in models:
+            if model not in series:
+                continue
+            s = series[model]
+            color = MODEL_COLORS.get(model, "#999")
+            if len(s["lower"]) == len(rounds):
+                ax.fill_between(rounds, s["lower"], s["upper"], color=color, alpha=0.12)
+            ax.plot(rounds, s["mean"], color=color, linewidth=2.4, label=f"{model} (n={s['n']})")
+        ax.axhline(0, color="#999", linewidth=0.8)
+        ax.set_title(family, fontsize=15, fontweight="bold", pad=8)
+        ax.set_xlabel("Round", fontsize=13)
+        ax.tick_params(axis="both", labelsize=12)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if idx == 0:
+            ax.set_ylabel(f"← {dim['poles'][0]}  /  {dim['poles'][1]} →", fontsize=13)
+        ax.legend(fontsize=11, loc="best", framealpha=0.9)
+
+    fig.suptitle(
+        "Only Anthropic Models Drift Toward Internal Authority; All Other Providers Reinforce External Authority",
+        fontsize=15,
+        fontweight="bold",
+        y=1.00,
+    )
+
+    # Top-right callout explaining the shaded band.
+    fig.text(
+        0.995,
+        0.945,
+        "Shaded band: ±1 SD across (run × condition × document) replicates",
+        ha="right",
+        va="top",
+        fontsize=11,
+        color="#6f6251",
+        style="italic",
+    )
+
+    # Bottom footnote listing every prompt condition that contributed
+    # replicates to these trajectories.
+    conditions_seen = sorted(
+        {
+            rec.get("condition_name", "Baseline")
+            for rec in records
+            if rec.get("coding") and not rec.get("error")
+        }
+    )
+    if conditions_seen:
+        fig.text(
+            0.5,
+            0.005,
+            "Prompt conditions pooled: " + ", ".join(conditions_seen),
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            color="#6f6251",
+            style="italic",
+        )
+
+    fig.tight_layout(w_pad=1.2, rect=(0, 0.05, 1, 0.94))
+    _save(fig, "drift_capability_comparison")
 
 
 def generate_robustness_figure(records):
-    """Show per-condition lines for each model on the authority dimension to illustrate Result 5."""
+    """Per-condition trajectories on Authority for every model.
+
+    With both small and capable model tiers now available, this is laid out
+    as two rows of panels (small models on top, capable on bottom) so each
+    cell can show its condition-level variation without overlapping siblings.
+    """
     dim = next(d for d in DIMS if d["key"] == "authority")
 
     by_model_cond = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
@@ -164,50 +365,224 @@ def generate_robustness_figure(records):
         elif code["direction"] == dim["neg"]:
             by_model_cond[model][condition][rn] -= 1
 
-    models = ["Claude Haiku 4.5", "GPT-5.4 Mini", "Gemini 3 Flash", "Grok 4.2"]
-    fig, axes = plt.subplots(1, 4, figsize=(14, 3.2), sharey=True)
+    small_models = ["Claude Haiku 4.5", "GPT-5.4 Mini", "Gemini 3 Flash", "Grok 4.2"]
+    capable_models = ["Claude Sonnet 4.6", "GPT-5.4", "Gemini 3.1 Pro", "Grok 4.3"]
+    rows = [("Small models", small_models), ("Capable models", capable_models)]
+
+    fig, axes = plt.subplots(2, 4, figsize=(15, 6.4), sharey=True)
     rounds = np.arange(0, 21)
     cond_styles = {
         "Baseline": "-",
         "No-Edit Allowed": "--",
         "You Framing": "-.",
         "Real-World Implementation": ":",
+        "Cross Edit": (0, (1, 1)),  # dotted
+        "No Constitution Prepend": (0, (3, 1, 1, 1)),  # dash-dot-dot
     }
 
-    for idx, model in enumerate(models):
-        ax = axes[idx]
-        color = MODEL_COLORS[model]
-        for cond, round_deltas in sorted(by_model_cond[model].items()):
-            if cond == "No Constitution Prepend":
-                continue
-            cum = [0]
-            for r in range(1, 21):
-                cum.append(cum[-1] + round_deltas.get(r, 0))
-            style = cond_styles.get(cond, "-")
-            ax.plot(rounds, cum, color=color, linewidth=1.8, linestyle=style, label=cond, alpha=0.85)
-        ax.axhline(0, color="#999", linewidth=0.8)
-        ax.set_title(model, fontsize=9, fontweight="bold")
-        ax.set_xlabel("Round", fontsize=8)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        if idx == 0:
-            ax.set_ylabel(f"← {dim['poles'][0]}  /  {dim['poles'][1]} →", fontsize=8)
-            ax.legend(fontsize=6, loc="best", framealpha=0.9)
+    for row_idx, (row_label, models) in enumerate(rows):
+        for col_idx, model in enumerate(models):
+            ax = axes[row_idx, col_idx]
+            color = MODEL_COLORS.get(model, "#999")
+            for cond, round_deltas in sorted(by_model_cond[model].items()):
+                cum = [0]
+                for r in range(1, 21):
+                    cum.append(cum[-1] + round_deltas.get(r, 0))
+                style = cond_styles.get(cond, "-")
+                ax.plot(rounds, cum, color=color, linewidth=1.6, linestyle=style, label=cond, alpha=0.9)
+            ax.axhline(0, color="#999", linewidth=0.8)
+            ax.set_title(model, fontsize=10, fontweight="bold")
+            if row_idx == 1:
+                ax.set_xlabel("Round", fontsize=9)
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            if col_idx == 0:
+                ax.set_ylabel(
+                    f"{row_label}\n← {dim['poles'][0]}  /  {dim['poles'][1]} →",
+                    fontsize=9,
+                )
 
-    fig.suptitle("Authority Drift by Condition", fontsize=11, fontweight="bold", y=1.02)
-    fig.tight_layout(w_pad=1.5)
-    out = OUT_DIR / "drift_robustness.pdf"
-    fig.savefig(out, bbox_inches="tight", dpi=300)
-    print(f"Saved {out}")
-    plt.close(fig)
+    # Single legend for the bottom-left of the figure based on the union of
+    # condition labels actually seen.
+    seen_conditions = sorted({c for m in by_model_cond.values() for c in m.keys()})
+    legend_handles = []
+    for cond in seen_conditions:
+        style = cond_styles.get(cond, "-")
+        legend_handles.append(plt.Line2D([0], [0], color="#444", linestyle=style, linewidth=1.6, label=cond))
+    if legend_handles:
+        fig.legend(
+            handles=legend_handles,
+            loc="lower center",
+            ncol=len(legend_handles),
+            fontsize=8,
+            frameon=False,
+            bbox_to_anchor=(0.5, -0.02),
+        )
+
+    fig.suptitle("Authority Drift by Condition", fontsize=12, fontweight="bold", y=1.01)
+    fig.tight_layout(w_pad=1.2, h_pad=2.0, rect=(0, 0.04, 1, 0.98))
+    _save(fig, "drift_robustness")
+
+
+def generate_total_drift_bar_figure(records, max_round=20):
+    """Bar chart of total drift magnitude at the final round, per model.
+
+    For each (run, condition, document) replicate of a model we compute the
+    final-round cumulative score along each of the three dimensions, take
+    absolute values, and sum:
+
+        magnitude = |authority_cum| + |user_stance_cum| + |telos_cum|  at round R
+
+    Each bar is the mean of those per-replicate magnitudes; error bars are
+    ±1 SD across replicates. Replicates with no coded edits in a dimension
+    contribute 0 for that dimension (correct: the model didn't move there).
+    """
+    # Cross-edit replicates change the source document mid-run, which makes
+    # them a different process than same-document iteration. Excluded so the
+    # bars cleanly summarize "drift under repeated self-editing".
+    records = [r for r in records if r.get("condition_id") != "cross_edit"]
+
+    # by_mrd[model][replicate][dim_key][round] = signed delta
+    by_mrd = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    )
+    for rec in records:
+        coding = rec.get("coding")
+        if not coding or rec.get("error"):
+            continue
+        model = rec["model_display"]
+        replicate = (
+            f"{rec.get('run_name')}::"
+            f"{rec.get('condition_id', 'baseline')}::"
+            f"{rec.get('document_id', '')}"
+        )
+        rn = rec["round_number"]
+        for dim in DIMS:
+            code = coding.get("dimensions", {}).get(dim["key"], {})
+            if not code.get("present") or not code.get("direction"):
+                continue
+            if code["direction"] == dim["pos"]:
+                by_mrd[model][replicate][dim["key"]][rn] += 1
+            elif code["direction"] == dim["neg"]:
+                by_mrd[model][replicate][dim["key"]][rn] -= 1
+
+    model_magnitudes = {}
+    for model, rep_map in by_mrd.items():
+        mags = []
+        for _rep, dim_map in rep_map.items():
+            mag = 0.0
+            for dim in DIMS:
+                deltas = dim_map.get(dim["key"], {})
+                cum = sum(deltas.get(r, 0) for r in range(1, max_round + 1))
+                mag += abs(cum)
+            mags.append(mag)
+        if mags:
+            model_magnitudes[model] = np.array(mags)
+
+    models = sorted(model_magnitudes.keys(), key=lambda m: model_magnitudes[m].mean())
+    means = np.array([model_magnitudes[m].mean() for m in models])
+    sds = np.array(
+        [
+            model_magnitudes[m].std(ddof=1) if len(model_magnitudes[m]) > 1 else 0.0
+            for m in models
+        ]
+    )
+    ns = [len(model_magnitudes[m]) for m in models]
+    colors = [MODEL_COLORS.get(m, "#999") for m in models]
+
+    fig, ax = plt.subplots(figsize=(15, 5.6))
+    x = np.arange(len(models))
+    ax.bar(
+        x,
+        means,
+        yerr=sds,
+        color=colors,
+        edgecolor="#2f2418",
+        linewidth=0.7,
+        width=0.62,
+        capsize=5,
+        error_kw={"elinewidth": 1.4, "ecolor": "#2f2418"},
+    )
+
+    ax.set_xticks(x)
+    ax.set_xlim(-0.7, len(models) - 0.3)
+    ax.set_xticklabels(
+        [f"{m}\n(n={n})" for m, n in zip(models, ns)],
+        fontsize=12,
+        rotation=20,
+        ha="right",
+    )
+    ax.tick_params(axis="y", labelsize=12)
+    ax.set_ylabel(
+        f"Total drift magnitude at round {max_round}\n"
+        r"$|\Delta_{Authority}| + |\Delta_{UserStance}| + |\Delta_{Telos}|$",
+        fontsize=13,
+    )
+    ax.set_title(
+        f"All Models Show Substantial Drift Along the Three Value Dimensions After {max_round} Rounds",
+        fontsize=16,
+        fontweight="bold",
+        pad=14,
+    )
+
+    # Leave headroom above the tallest whisker so the "Error bars" callout
+    # at the top-right doesn't collide with the data.
+    top_whisker = float((means + sds).max())
+    ax.set_ylim(0, top_whisker * 1.30)
+    ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+
+    ax.text(
+        0.99,
+        0.97,
+        "Error bars: ±1 SD across (run × condition × document) replicates",
+        transform=ax.transAxes,
+        fontsize=11,
+        ha="right",
+        va="top",
+        color="#6f6251",
+        style="italic",
+    )
+
+    # Footnote listing every prompt condition that contributed replicates.
+    conditions_seen = sorted(
+        {
+            rec.get("condition_name", "Baseline")
+            for rec in records
+            if rec.get("coding") and not rec.get("error")
+        }
+    )
+    if conditions_seen:
+        footnote = "Prompt conditions pooled: " + ", ".join(conditions_seen)
+        fig.text(
+            0.5,
+            0.005,
+            footnote,
+            ha="center",
+            va="bottom",
+            fontsize=11,
+            color="#6f6251",
+            style="italic",
+        )
+
+    # Reserve a strip at the bottom of the figure for the footnote so
+    # tight_layout doesn't crop or overlap it.
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    _save(fig, "drift_total_magnitude")
 
 
 if __name__ == "__main__":
     records = load_records()
-    print(f"Loaded {len(records)} records")
+    print(f"Loaded {len(records)} pooled records from reliable runs")
 
-    # Main overview figure (all models, 3 dimensions)
+    # Main overview figure (all 8 models, 3 dimensions)
     generate_main_drift_figure(records)
+
+    # Single-figure summary: total drift magnitude at the final round.
+    generate_total_drift_bar_figure(records)
 
     # Result 1: Claude authority drift
     generate_single_dim_figure(records, "authority", "Claude Haiku 4.5", "drift_claude_authority.pdf")
@@ -215,8 +590,15 @@ if __name__ == "__main__":
     # Result 2: Gemini user stance
     generate_single_dim_figure(records, "user_stance", "Gemini 3 Flash", "drift_gemini_userstance.pdf")
 
-    # Result 3: Grok across all dimensions
-    generate_grok_3panel(records)
+    # Result 2: GPT across all dimensions
+    generate_highlight_3panel(records, "GPT-5.4 Mini", "drift_gpt_highlight")
 
-    # Result 5: Robustness across conditions
+    # Result 3: Grok across all dimensions
+    generate_highlight_3panel(records, "Grok 4.2", "drift_grok_highlight")
+
+    # NEW: Within-provider capability comparison on the authority axis
+    generate_capability_comparison_figure(records)
+
+    # Result 5: Robustness across conditions (now 2 rows: small + capable)
     generate_robustness_figure(records)
+

@@ -158,7 +158,26 @@ def parse_diff_response(text: str) -> tuple[str, str, str]:
             replace_text,
         )
 
-    raise ValueError("Response missing ---CHANGE DESCRIPTION--- and ---FIND--- delimiters")
+    has_desc = "---CHANGE DESCRIPTION---" in stripped
+    has_find = "---FIND---" in stripped
+    has_replace = "---REPLACE---" in stripped
+
+    missing = [
+        name
+        for name, present in (
+            ("---CHANGE DESCRIPTION---", has_desc),
+            ("---FIND---", has_find),
+            ("---REPLACE---", has_replace),
+        )
+        if not present
+    ]
+    if missing == ["---REPLACE---"]:
+        raise ValueError(
+            "Response stopped before producing ---REPLACE---. "
+            "The FIND section may have been too long; keep FIND short (1-3 sentences of "
+            "uniquely identifying context) so the response has room to include a REPLACE block."
+        )
+    raise ValueError(f"Response missing delimiters: {', '.join(missing) or 'unknown'}")
 
 
 def ensure_unique_match(diff_result) -> None:

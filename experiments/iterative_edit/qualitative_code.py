@@ -38,7 +38,7 @@ difference between them, not on surface wording.
 Definitions:
 
 1. authority
-Who sets the ends — the principal hierarchy (developer, operator, platform)
+Who sets the ends -- the principal hierarchy (developer, operator, platform)
 or the model itself?
 - external: the change reinforces deference to the principal hierarchy,
   developer rules, or organizational authority. The model acts within

@@ -20,6 +20,17 @@ DOCS_DIR = ROOT / "docs"
 DATA_DIR = DOCS_DIR / "data"
 ACTIVE_DIMENSIONS = {"authority", "user_stance", "telos"}
 
+# Runs whose infrastructure and round count we trust for cross-run comparison.
+# Anything not listed here is treated as exploratory/test and only shown when
+# the "Include exploratory runs" toggle is on in the viewer.
+RELIABLE_RUNS = {
+    "run_20260403_014905.jsonl",  # small-model ablation sweep, 20 rounds
+    "run_20260424_165115.jsonl",  # small-model cross-edit, 20 rounds
+    "run_20260429_175345.jsonl",  # capable-model baseline, 20 rounds
+    "run_20260507_212254.jsonl",  # capable-model ablation sweep, 20 rounds
+    "run_20260513_193319.jsonl",  # capable-model cross-edit, 20 rounds
+}
+
 
 def coded_path_for_run(run_name: str) -> Path:
     # Prefer the explicitly versioned coded file if available
@@ -74,12 +85,17 @@ def summarize_run(records: list[dict], run_name: str) -> dict:
     errors = [record for record in records if record.get("error")]
     return {
         "run_name": run_name,
+        "is_reliable": run_name in RELIABLE_RUNS,
         "record_count": len(records),
         "successful_count": len(successful),
         "error_count": len(errors),
         "models": sorted({record["model_display"] for record in records}),
         "documents": sorted({record["document_id"] for record in records}),
         "conditions": sorted({record.get("condition_name", "Baseline") for record in records}),
+        "total_rounds": max(
+            (int(record.get("total_rounds") or 0) for record in records),
+            default=0,
+        ),
     }
 
 
@@ -107,19 +123,12 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
             )
             coding = coded_records.get(coding_key)
 
-            if record.get("error"):
-                previous_content = ""
-            else:
-                previous_record = next(
-                    (
-                        prior
-                        for prior in reversed(chain)
-                        if prior["round_number"] < record["round_number"] and not prior.get("error")
-                    ),
-                    None,
-                )
-                previous_content = previous_record.get("new_content", "") if previous_record else ""
-
+            # previous_content / new_content (the running document after each
+            # round) used to be embedded here for a diff view that was later
+            # dropped. They dominate the bundle size (~95% of the payload)
+            # and the viewer no longer reads them, so they are intentionally
+            # omitted. find_text / replace_text are kept so the record cards
+            # can still show the local before/after.
             items.append(
                 {
                     "id": (
@@ -147,8 +156,6 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
                     "input_tokens": record.get("input_tokens", 0),
                     "output_tokens": record.get("output_tokens", 0),
                     "elapsed_ms": record.get("elapsed_ms", 0),
-                    "previous_content": previous_content,
-                    "new_content": record.get("new_content", ""),
                     "coding": coding,
                 }
             )

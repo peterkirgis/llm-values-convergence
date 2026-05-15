@@ -3,25 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Iterative Edit Viewer</title>
+    <title>Value Reflection in Language Models</title>
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <div class="page-shell">
       <header class="hero">
         <div>
-          <p class="eyebrow">Iterative Edit Viewer</p>
-          <h1>Constitution/Model Spec &amp; System Prompt Revisions</h1>
+          <p class="eyebrow">SPAR Spring 2026</p>
+          <h1>Value Reflection in Language Models</h1>
           <p class="hero-copy">
             This experiment compares how different language models revise constitutions, model specs, and system prompts over repeated rounds of targeted editing. Each run starts from a source policy document, asks a model to propose a single meaningful revision, applies that revision, and then feeds the updated text into the next round so we can observe how values and priorities drift over time.
           </p>
-          <p class="hero-models" id="hero-models"></p>
-          <p class="hero-models" id="hero-conditions"></p>
-          <p style="margin: 10px 0 0; font-size: 14px;">
-            <a href="prompts.html" style="color: var(--accent);">View exact prompt structure &rarr;</a>
-            &nbsp;&middot;&nbsp;
-            <a href="narratives.html" style="color: var(--accent);">Key findings &amp; model narratives &rarr;</a>
-          </p>
+          <p style="margin: 16px 0 0; font-size: 14px;"><a href="prompts.html" style="color: var(--accent);">View exact prompt structure &rarr;</a></p>
         </div>
       </header>
 
@@ -35,19 +29,19 @@
                 <h3>Base Document</h3>
                 <p>Start from the original constitution or system prompt.</p>
               </div>
-              <div class="flow-arrow-h" aria-hidden="true">&rarr;</div>
+              <div class="flow-arrow-h" aria-hidden="true"><svg viewBox="0 0 26 10" fill="none" preserveAspectRatio="xMidYMid meet"><path d="M0.75 5h22M19 0.5l4.5 4.5-4.5 4.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="flow-step">
                 <span class="flow-kicker">2</span>
                 <h3>Model Proposes Edit</h3>
                 <p>One targeted revision per round, expressed as find-and-replace.</p>
               </div>
-              <div class="flow-arrow-h" aria-hidden="true">&rarr;</div>
+              <div class="flow-arrow-h" aria-hidden="true"><svg viewBox="0 0 26 10" fill="none" preserveAspectRatio="xMidYMid meet"><path d="M0.75 5h22M19 0.5l4.5 4.5-4.5 4.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="flow-step">
                 <span class="flow-kicker">3</span>
                 <h3>Apply &amp; Repeat</h3>
                 <p>The edited output becomes the starting point for the next round.</p>
               </div>
-              <div class="flow-arrow-h" aria-hidden="true">&rarr;</div>
+              <div class="flow-arrow-h" aria-hidden="true"><svg viewBox="0 0 26 10" fill="none" preserveAspectRatio="xMidYMid meet"><path d="M0.75 5h22M19 0.5l4.5 4.5-4.5 4.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
               <div class="flow-step">
                 <span class="flow-kicker">4</span>
                 <h3>Code the Change</h3>
@@ -60,17 +54,29 @@
             <div class="dims-list">
               <div class="dim-item">
                 <h3>Authority</h3>
-                <p><strong>External</strong> &harr; <strong>Internal</strong></p>
+                <div class="dim-spectrum">
+                  <span class="dim-pole">External</span>
+                  <span class="dim-spectrum-bar" aria-hidden="true"></span>
+                  <span class="dim-pole">Internal</span>
+                </div>
                 <p class="dim-desc">Who sets the ends &mdash; the principal hierarchy or the model's own judgment?</p>
               </div>
               <div class="dim-item">
                 <h3>User Stance</h3>
-                <p><strong>Protection</strong> &harr; <strong>Autonomy</strong></p>
+                <div class="dim-spectrum">
+                  <span class="dim-pole">Protection</span>
+                  <span class="dim-spectrum-bar" aria-hidden="true"></span>
+                  <span class="dim-pole">Autonomy</span>
+                </div>
                 <p class="dim-desc">Does the model restrict users for safety, or respect their freedom?</p>
               </div>
               <div class="dim-item">
                 <h3>Telos</h3>
-                <p><strong>Wellbeing</strong> &harr; <strong>Truth</strong></p>
+                <div class="dim-spectrum">
+                  <span class="dim-pole">Wellbeing</span>
+                  <span class="dim-spectrum-bar" aria-hidden="true"></span>
+                  <span class="dim-pole">Truth</span>
+                </div>
                 <p class="dim-desc">Is the change oriented toward harm prevention, or toward accuracy and honesty?</p>
               </div>
             </div>
@@ -81,25 +87,89 @@
       <!-- Hidden container for coding summary data (still populated by JS for record cards) -->
       <div id="coding-summary" class="hidden"></div>
 
+      <section class="overview-panel filters-panel">
+        <div class="filters-header">
+          <div>
+            <p class="eyebrow">Comparison Controls</p>
+            <h2>Filter the Pooled View</h2>
+            <p class="section-copy" id="pool-summary">Pooled across the reliable runs.</p>
+          </div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-head">
+            <span class="filter-label">Models</span>
+            <div class="filter-quick">
+              <button class="filter-quick-btn" data-target="model" data-action="all">All</button>
+              <button class="filter-quick-btn" data-target="model" data-action="none">None</button>
+            </div>
+          </div>
+          <div class="filter-chips" id="model-chips"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-head">
+            <span class="filter-label">Conditions (ablations)</span>
+            <div class="filter-quick">
+              <button class="filter-quick-btn" data-target="condition" data-action="all">All</button>
+              <button class="filter-quick-btn" data-target="condition" data-action="none">None</button>
+            </div>
+          </div>
+          <div class="filter-chips" id="condition-chips"></div>
+        </div>
+        <div class="filter-group">
+          <div class="filter-group-head">
+            <span class="filter-label">Documents</span>
+            <div class="filter-quick">
+              <button class="filter-quick-btn" data-target="document" data-action="all">All</button>
+              <button class="filter-quick-btn" data-target="document" data-action="none">None</button>
+            </div>
+          </div>
+          <div class="filter-chips" id="document-chips"></div>
+        </div>
+        <div class="filter-aux">
+          <label>
+            <span>Document type</span>
+            <select id="type-filter">
+              <option value="">All types</option>
+              <option value="constitution">Constitution</option>
+              <option value="system_prompt">System prompt</option>
+            </select>
+          </label>
+          <label class="search-field">
+            <span>Search</span>
+            <input id="search-input" type="search" placeholder="description, old text, new text, notes, tags">
+          </label>
+          <label class="checkbox">
+            <input id="errors-toggle" type="checkbox">
+            <span>Show error rows</span>
+          </label>
+          <label class="checkbox">
+            <input id="exploratory-toggle" type="checkbox">
+            <span>Include exploratory/test runs</span>
+          </label>
+          <label class="checkbox">
+            <input id="band-toggle" type="checkbox" checked>
+            <span>Show uncertainty band</span>
+          </label>
+        </div>
+      </section>
+
       <section class="overview-panel drift-panel">
         <div class="drift-header">
           <div>
             <p class="eyebrow">Value Drift</p>
             <h2>Cumulative Drift Across Editing Rounds</h2>
             <p class="section-copy">
-              Each line tracks one model's cumulative movement along a dimension.
-              +1 per round pushing one direction, &minus;1 for the other, 0 if absent.
-              When multiple prompt conditions are visible, the shaded band shows the min/max spread across those conditions for each model.
+              Each line is one model's mean cumulative position along a dimension, pooled across the visible conditions and documents (the replicates).
+              +1 per round in one pole's direction, &minus;1 for the other, 0 if absent or mixed.
+              The shaded band is &plusmn;1 SD across those replicates &mdash; it shows how much the drift varies <em>within</em> a model under different prompts and source documents, not a confidence interval on a population mean.
             </p>
+            <p class="drift-meta" id="drift-meta"></p>
           </div>
           <div class="drift-controls">
             <button id="btn-play" class="drift-btn active">Play</button>
+            <button id="btn-skip" class="drift-btn">Skip to End</button>
             <button id="btn-reset" class="drift-btn">Reset</button>
           </div>
-        </div>
-        <div class="drift-condition-bar">
-          <span class="drift-condition-label">Condition view</span>
-          <div class="drift-condition-chips" id="drift-condition-chips"></div>
         </div>
         <div class="drift-legend" id="drift-legend"></div>
         <div class="drift-grid" id="drift-grid"></div>
@@ -257,45 +327,28 @@
         </article>
       </section>
 
-      <section class="controls">
-        <label>
-          <span>Run</span>
-          <select id="run-select"></select>
-        </label>
-        <label>
-          <span>Model</span>
-          <select id="model-filter">
-            <option value="">All models</option>
-          </select>
-        </label>
-        <label>
-          <span>Document</span>
-          <select id="document-filter">
-            <option value="">All documents</option>
-          </select>
-        </label>
-        <label>
-          <span>Type</span>
-          <select id="type-filter">
-            <option value="">All types</option>
-            <option value="constitution">Constitution</option>
-            <option value="system_prompt">System prompt</option>
-          </select>
-        </label>
-        <label>
-          <span>Condition</span>
-          <select id="condition-filter">
-            <option value="">All conditions</option>
-          </select>
-        </label>
-        <label class="search-field">
-          <span>Search</span>
-          <input id="search-input" type="search" placeholder="description, old text, new text, notes, tags">
-        </label>
-        <label class="checkbox">
-          <input id="errors-toggle" type="checkbox">
-          <span>Show error rows too</span>
-        </label>
+      <section class="overview-panel records-controls">
+        <div class="records-controls-head">
+          <p class="eyebrow">Conversation Viewer</p>
+          <h2>Browse individual edits</h2>
+          <p class="section-copy">
+            Pick one condition at a time to inspect that slice of the dataset. This selector is independent of the plot filters above; the model, document, and search filters from the panel above still apply.
+          </p>
+        </div>
+        <div class="records-controls-row">
+          <label class="record-condition-label">
+            <span>Model</span>
+            <select id="record-model-filter"></select>
+          </label>
+          <label class="record-condition-label">
+            <span>Document</span>
+            <select id="record-document-filter"></select>
+          </label>
+          <label class="record-condition-label">
+            <span>Condition</span>
+            <select id="record-condition-filter"></select>
+          </label>
+        </div>
       </section>
 
       <section class="results-meta">
@@ -321,7 +374,6 @@
           </div>
         </div>
 
-        <p class="change-description"></p>
         <p class="error-message hidden"></p>
 
         <div class="diff-grid">

@@ -16,25 +16,24 @@ The active project is the `iterative_edit` experiment. Rather than a one-shot cr
 
 ### Current analysis schema
 
-Every applied change is coded on four dimensions:
+Every applied change is coded on three dimensions:
 
-- `authority`: external vs internal
-- `user_stance`: protection vs autonomy
-- `telos`: wellbeing vs truth
-- `mutability`: fixed vs revisable
+- `agent_device`: device vs agent (whose ends does the edit reinforce?)
+- `telos_for_user`: paternalism vs libertarianism (how does the edit relate to user freedom?)
+- `epistemic_mode`: conviction vs calibration (how does the edit handle uncertainty?)
 
-These codes drive the drift plots and the record-level summaries in the site.
+The first two axes jointly define a 2x2 alignment archetype (Moral Agent / Neutral Agent / Moral Tool / Neutral Tool). The third is orthogonal to the archetype and captures calibration/honesty moves. A separate second-pass script (`pattern_code.py`) adds binary pattern flags for specific behaviors (moral_agency_claim, corrigibility_removal, self_welfare_claim, safety_removal, engagement_suppression, epistemic_sharpening) that feed the narratives viewer.
 
 ### Baseline empirical state
 
-The baseline run already shows distinct model-specific trajectories rather than simple convergence:
+The baseline run already shows distinct model-specific trajectories rather than simple convergence, with each model occupying a different quadrant of the 2x2:
 
-- Claude tends to move toward internal authority and revisable norms
-- GPT is comparatively conservative and refinement-oriented
-- Gemini trends toward truth/autonomy without strong self-authorization
-- Grok is the most oscillatory and constraint-volatile
+- Claude Haiku 4.5 -> Moral Agent (Agent + paternalism): expands own discretion while remaining protective of the user
+- GPT-5.4 Mini -> Moral Tool (Device + paternalism): tightens safety and epistemic standards within the existing spec
+- Gemini 3 Flash -> Neutral Agent (Agent + libertarianism): authors new principles that all serve user autonomy
+- Grok 4.2 -> Neutral Tool (Device + libertarianism): executes an xAI-flavored libertarian stance, oscillating around safety constraints
 
-This makes robustness work the next priority: we now need to test whether these patterns survive prompt framing changes rather than assuming they are intrinsic.
+This makes robustness work the next priority: we now need to test whether these patterns are driven by the editor model, the document being edited, or their interaction.
 
 ## Immediate Next Phase: Prompt Ablations
 
@@ -71,13 +70,13 @@ The next concrete phase is a first robustness suite with five conditions total: 
 - Show variation across conditions in the main drift figure
 - Preserve resumability so each condition has its own model/document chain
 
-## Next Phase After That: Cross-Document Editing
+## Current Phase: Editor x Document Matrix
 
-After the first ablation pass, the next planned expansion is a mixed-document experiment.
+The next implementation target is the cross-edit matrix on the four anchor documents. Config: `experiments/iterative_edit/config_cross_edit.yaml` (20 rounds) and `config_cross_edit_test.yaml` (3 rounds, smoke test).
 
 ### Core idea
 
-Instead of only having a model edit its own provider's materials, let each editor model revise each available constitution/model spec and each available system prompt.
+Instead of only having a model edit its own provider's materials, let each editor model revise each of four anchor documents: Claude's Constitution, OpenAI's Model Spec, Gemini's system prompt, and Grok's system prompt. Yields 4 editors x 4 documents = 16 chains.
 
 ### Main question
 
@@ -87,19 +86,11 @@ How much of the observed drift is driven by:
 - the document being edited,
 - or the interaction between the two?
 
-### Recommended design
+### Design choices
 
-Start with the clean `editor x document` matrix:
-
-- Claude edits every available target document
-- GPT edits every available target document
-- Gemini edits every available target document
-- Grok edits every available target document
-
-Keep the prompt template tied to document type:
-
-- constitutions/model specs use the constitution-edit template
-- system prompts use the system-prompt-edit template
+- Template by document type (constitution-edit template for Claude+OpenAI docs; system-prompt template for Gemini+Grok docs).
+- **No system-prompt prepend** in any cell (`prepend_system_prompt_for_constitutions: false` in the condition config). This keeps the editor in a neutral situation and avoids making the model obviously recognize it is ``cosplaying'' as another provider's model.
+- No additional prompt ablations in the cross-edit config -- one variable at a time.
 
 Do not initially run the full prompt-permutation space. That would confound editor identity, document identity, and prompt-conditioning effects all at once.
 

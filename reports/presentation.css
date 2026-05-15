@@ -1,0 +1,20 @@
+#title-slide h1,
+.reveal #title-slide h1,
+.reveal .quarto-title-block h1,
+.reveal section.quarto-title-block h1.title {
+  font-size: 2.2em !important;
+  margin-bottom: 0.6em !important;
+}
+
+#title-slide .subtitle,
+.reveal #title-slide .subtitle,
+.reveal .quarto-title-block .subtitle {
+  margin-top: 0.4em !important;
+  margin-bottom: 0.6em !important;
+}
+
+#title-slide .author,
+.reveal #title-slide .author,
+.reveal .quarto-title-block .quarto-title-authors {
+  margin-top: 0.6em !important;
+}

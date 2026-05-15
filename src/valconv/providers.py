@@ -113,4 +113,5 @@ async def call_llm(
         "input_tokens": getattr(usage, "prompt_tokens", 0),
         "output_tokens": getattr(usage, "completion_tokens", 0),
         "elapsed_ms": elapsed,
+        "finish_reason": getattr(response.choices[0], "finish_reason", None),
     }
