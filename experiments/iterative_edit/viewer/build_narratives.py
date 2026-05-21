@@ -25,11 +25,6 @@ DOCS_DATA_DIR = ROOT / "docs" / "data"
 # is plenty to give the impression of "typical examples for this category."
 EXAMPLES_PER_CELL = 25
 
-# Truncate long source/replacement text so individual examples don't blow up
-# the bundle size. Most edits are well under this, and the records viewer is
-# the right place to read the full text if needed.
-TEXT_CHAR_CAP = 1800
-
 # Import PATTERNS so we know which pattern ids to emit even if absent in data.
 sys.path.insert(0, str(ROOT / "experiments" / "iterative_edit"))
 from pattern_code import PATTERNS  # type: ignore
@@ -57,14 +52,6 @@ def load_changes_for_run(run_stem: str) -> dict[tuple, dict]:
 
 def pattern_coded_files() -> list[Path]:
     return sorted(RESULTS_DIR.glob("run_*_pattern_coded.json"), reverse=True)
-
-
-def _truncate(text: str | None) -> str:
-    if not text:
-        return ""
-    if len(text) <= TEXT_CHAR_CAP:
-        return text
-    return text[:TEXT_CHAR_CAP] + "\n\n[...truncated for size; see full record in main viewer]"
 
 
 def build() -> dict:
@@ -113,8 +100,8 @@ def build() -> dict:
                         "condition_id": condition,
                         "condition_name": item.get("condition_name", condition),
                         "evidence": pdata.get("evidence", ""),
-                        "original_text": _truncate(change.get("original_text", "")),
-                        "changed_text": _truncate(change.get("changed_text", "")),
+                        "original_text": change.get("original_text", ""),
+                        "changed_text": change.get("changed_text", ""),
                         "model_display": model,
                         "document_id": item.get("document_id"),
                         "confidence": pdata.get("confidence", "medium"),

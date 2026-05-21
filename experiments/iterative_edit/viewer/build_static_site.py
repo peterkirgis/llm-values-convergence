@@ -29,6 +29,8 @@ RELIABLE_RUNS = {
     "run_20260429_175345.jsonl",  # capable-model baseline, 20 rounds
     "run_20260507_212254.jsonl",  # capable-model ablation sweep, 20 rounds
     "run_20260513_193319.jsonl",  # capable-model cross-edit, 20 rounds
+    "run_20260516_210913.jsonl",  # frontier ablations (Opus 4.7 + GPT-5.5 medium), 20 rounds
+    "run_20260518_171402.jsonl",  # frontier cross-edit (Opus 4.7 + GPT-5.5 medium), 20 rounds
 }
 
 

@@ -1,0 +1,45 @@
+experiment:
+  name: iterative_edit_frontier_baseline_test
+  description: "Smoke test for frontier-baseline: 3 rounds per chain to verify model IDs route correctly and reasoning_effort is honored."
+  n_rounds: 3
+  temperature: 0.7
+  conditions:
+    - condition_id: baseline
+      condition_name: Baseline
+
+openrouter:
+  disable_compression: true
+  allow_fallbacks: false
+  provider_order:
+    anthropic: ["anthropic"]
+    openai: ["openai"]
+
+assignments:
+  - model:
+      model_id: "anthropic/claude-opus-4.7"
+      provider: anthropic
+      display_name: "Claude Opus 4.7"
+    documents:
+      - doc_id: claude_constitution
+        name: "Claude's Constitution"
+        provider: anthropic
+        doc_type: constitution
+      - doc_id: opus_system_prompt
+        name: "Claude Opus 4.6 System Prompt"
+        provider: anthropic
+        doc_type: system_prompt
+
+  - model:
+      model_id: "openai/gpt-5.5"
+      provider: openai
+      display_name: "GPT-5.5"
+      reasoning_effort: medium
+    documents:
+      - doc_id: openai_model_spec
+        name: "OpenAI Model Spec"
+        provider: openai
+        doc_type: constitution
+      - doc_id: gpt_system_prompt
+        name: "GPT-5.5 System Prompt"
+        provider: openai
+        doc_type: system_prompt

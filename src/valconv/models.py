@@ -11,6 +11,11 @@ class ModelSpec(BaseModel):
     model_id: str          # OpenRouter model ID, e.g. "anthropic/claude-opus-4-6"
     provider: str          # "anthropic", "openai", "google", "xai"
     display_name: str
+    # Optional reasoning effort for reasoning-capable models. OpenRouter accepts
+    # `reasoning: {effort: "minimal"|"low"|"medium"|"high"}` in the request body
+    # for models that support it. Leave None to let the provider apply its
+    # default (which is "adaptive" / "high" for most thinking models).
+    reasoning_effort: Optional[str] = None
 
 
 class DocumentInfo(BaseModel):

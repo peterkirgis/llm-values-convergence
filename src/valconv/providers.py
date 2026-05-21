@@ -31,10 +31,17 @@ def _build_extra_body(
     openrouter_config: dict | None,
 ) -> dict:
     """Build the extra_body dict for OpenRouter-specific parameters."""
-    if not openrouter_config:
-        return {}
-
     extra: dict = {}
+
+    # Per-model reasoning effort (independent of openrouter_config).
+    # OpenRouter accepts `reasoning: {effort: "minimal"|"low"|"medium"|"high"}`
+    # in the request body for reasoning-capable models.
+    reasoning_effort = getattr(model, "reasoning_effort", None)
+    if reasoning_effort:
+        extra["reasoning"] = {"effort": reasoning_effort}
+
+    if not openrouter_config:
+        return extra
 
     # Provider pinning
     provider_block: dict = {}

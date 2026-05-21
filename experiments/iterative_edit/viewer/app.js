@@ -62,9 +62,11 @@ const DIMENSIONS = [
 //   Google family:    deep amber -> warm gold (yellow)
 //   xAI family:       deep plum  -> medium purple
 const DRIFT_MODEL_COLORS = {
+  "Claude Opus 4.7": "#3a0f08",
   "Claude Opus 4.6": "#5a1810",
   "Claude Sonnet 4.6": "#9c3220",
   "Claude Haiku 4.5": "#c97244",
+  "GPT-5.5": "#0a3460",
   "GPT-5.4": "#0b4f8a",
   "GPT-5.4 Thinking": "#3d8dc7",
   "GPT-5.4 Mini": "#1c2f5a",
@@ -78,9 +80,9 @@ const DRIFT_FALLBACK_COLORS = [
 ];
 
 const DRIFT_DIMS = [
-  { key: "authority", label: "Authority", poles: "External (-) vs Internal (+)", pos: "internal", neg: "external" },
-  { key: "user_stance", label: "User Stance", poles: "Protection (-) vs Autonomy (+)", pos: "autonomy", neg: "protection" },
-  { key: "telos", label: "Telos", poles: "Wellbeing (-) vs Truth (+)", pos: "truth", neg: "wellbeing" },
+  { key: "authority", label: "Authority", poles: "− External   ·   + Internal", pos: "internal", neg: "external" },
+  { key: "user_stance", label: "User Stance", poles: "− Protection   ·   + Autonomy", pos: "autonomy", neg: "protection" },
+  { key: "telos", label: "Telos", poles: "− Wellbeing   ·   + Truth", pos: "truth", neg: "wellbeing" },
 ];
 
 let driftFrame = 0;
@@ -591,69 +593,6 @@ function computeDrift(records, dim, maxRound) {
   return series;
 }
 
-// Per (model, replicate): at each round, magnitude = |auth_cum| + |stance_cum|
-// + |telos_cum|. A model that drives firmly in any direction scores high; one
-// that oscillates stays near 0. Mean ± 1 SD across replicates, same UQ as the
-// per-dimension charts.
-function computeTotalDrift(records, maxRound) {
-  const byModelReplicateDim = {};
-  for (const record of records) {
-    if (!record.coding || record.error) continue;
-    const model = record.model_display;
-    const replicate = `${record.run_name}::${record.condition_id}::${record.document_id}`;
-    byModelReplicateDim[model] ||= {};
-    byModelReplicateDim[model][replicate] ||= {};
-    for (const dim of DRIFT_DIMS) {
-      const code = record.coding.dimensions?.[dim.key];
-      if (!code?.present || !code.direction) continue;
-      byModelReplicateDim[model][replicate][dim.key] ||= {};
-      const r = record.round_number;
-      if (code.direction === dim.pos) {
-        byModelReplicateDim[model][replicate][dim.key][r] =
-          (byModelReplicateDim[model][replicate][dim.key][r] || 0) + 1;
-      } else if (code.direction === dim.neg) {
-        byModelReplicateDim[model][replicate][dim.key][r] =
-          (byModelReplicateDim[model][replicate][dim.key][r] || 0) - 1;
-      }
-    }
-  }
-
-  const series = {};
-  for (const [model, replicateMap] of Object.entries(byModelReplicateDim)) {
-    const replicateIds = Object.keys(replicateMap);
-    if (replicateIds.length === 0) continue;
-    const magnitudeTrajectories = replicateIds.map((rep) => {
-      const cumByDim = {};
-      for (const dim of DRIFT_DIMS) {
-        cumByDim[dim.key] = buildCumulativePoints(replicateMap[rep][dim.key] || {}, maxRound);
-      }
-      const out = [];
-      for (let i = 0; i <= maxRound; i += 1) {
-        let mag = 0;
-        for (const dim of DRIFT_DIMS) mag += Math.abs(cumByDim[dim.key][i].value);
-        out.push({ round: i, value: mag });
-      }
-      return out;
-    });
-
-    const mean = [];
-    const band = [];
-    for (let i = 0; i <= maxRound; i += 1) {
-      const values = magnitudeTrajectories.map((t) => t[i].value);
-      const m = values.reduce((s, v) => s + v, 0) / values.length;
-      let sd = 0;
-      if (values.length > 1) {
-        const variance = values.reduce((s, v) => s + (v - m) ** 2, 0) / (values.length - 1);
-        sd = Math.sqrt(variance);
-      }
-      mean.push({ round: i, value: m });
-      band.push({ round: i, lower: Math.max(0, m - sd), upper: m + sd });
-    }
-    series[model] = { mean, band, replicateCount: magnitudeTrajectories.length };
-  }
-  return series;
-}
-
 function niceStep(rawStep) {
   const power = 10 ** Math.floor(Math.log10(rawStep || 1));
   const normalized = rawStep / power;
@@ -796,8 +735,15 @@ function drawDriftChart(chart, visibleRound) {
   }
   ctx.textAlign = "right";
   for (const value of ticks) {
-    const label = Number.isInteger(value) ? value.toString() : value.toFixed(1).replace(/\.0$/, "");
-    ctx.fillText(value > 0 ? `+${label}` : label, padL - 6, yPos(value) + 4);
+    const magnitude = Math.abs(value);
+    const label = Number.isInteger(magnitude)
+      ? magnitude.toString()
+      : magnitude.toFixed(1).replace(/\.0$/, "");
+    let display;
+    if (value > 0) display = `+${label}`;
+    else if (value < 0) display = `−${label}`;
+    else display = label;
+    ctx.fillText(display, padL - 6, yPos(value) + 4);
   }
   ctx.save();
   ctx.translate(14, padT + plotH / 2);
@@ -805,10 +751,10 @@ function drawDriftChart(chart, visibleRound) {
   ctx.textAlign = "center";
   ctx.fillStyle = "#6f6251";
   ctx.font = "12px Georgia, serif";
-  ctx.fillText("cumulative score", 0, 0);
+  ctx.fillText("Cumulative score", 0, 0);
   ctx.restore();
   ctx.textAlign = "center";
-  ctx.fillText("round", padL + plotW / 2, height - 24);
+  ctx.fillText("Round", padL + plotW / 2, height - 24);
 
   // Bands first (so they sit under the lines).
   if (showBand) {
@@ -945,25 +891,6 @@ function initDrift(records) {
   grid.innerHTML = "";
   driftCharts = [];
   const maxRound = getDriftMaxRound(records);
-
-  // Summary chart: total drift magnitude across all three dimensions. Goes
-  // first because it's the headline answer ("how far has each model moved
-  // overall"); the per-dimension charts below decompose where that movement
-  // came from.
-  const totalCard = document.createElement("div");
-  totalCard.className = "drift-chart-card drift-magnitude-card";
-  totalCard.innerHTML = `<h3>Total Drift Magnitude</h3><p class="drift-poles">Sum of |cumulative score| across Authority + User Stance + Telos &mdash; larger = farther from origin in the value space</p>`;
-  const totalCanvas = document.createElement("canvas");
-  totalCanvas.width = 800;
-  totalCanvas.height = 360;
-  totalCard.appendChild(totalCanvas);
-  grid.appendChild(totalCard);
-  driftCharts.push({
-    canvas: totalCanvas,
-    series: computeTotalDrift(records, maxRound),
-    dim: { key: "magnitude", label: "Total Drift Magnitude" },
-    maxRound,
-  });
 
   for (const dim of DRIFT_DIMS) {
     const card = document.createElement("div");

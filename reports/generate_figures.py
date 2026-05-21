@@ -32,14 +32,18 @@ RELIABLE_RUNS = {
     "run_20260429_175345.jsonl",  # capable-model baseline, 20 rounds
     "run_20260507_212254.jsonl",  # capable-model ablation sweep, 20 rounds
     "run_20260513_193319.jsonl",  # capable-model cross-edit, 20 rounds
+    "run_20260516_210913.jsonl",  # frontier ablations (Opus 4.7 + GPT-5.5 medium), 20 rounds
+    "run_20260518_171402.jsonl",  # frontier cross-edit (Opus 4.7 + GPT-5.5 medium), 20 rounds
 }
 
 # Colors are grouped by provider, with darker shades for larger / more
 # capable models within each family. Mirrors the palette in the viewer.
 MODEL_COLORS = {
+    "Claude Opus 4.7": "#3a0f08",
     "Claude Opus 4.6": "#5a1810",
     "Claude Sonnet 4.6": "#9c3220",
     "Claude Haiku 4.5": "#c97244",
+    "GPT-5.5": "#0a3460",
     "GPT-5.4": "#1a4878",
     "GPT-5.4 Thinking": "#3266a6",
     "GPT-5.4 Mini": "#5589c4",
@@ -52,9 +56,11 @@ MODEL_COLORS = {
 # Display order for figures: provider-grouped, capable above small within each
 # provider so the legend reads top-to-bottom from largest to smallest.
 MODEL_ORDER = [
+    "Claude Opus 4.7",
     "Claude Opus 4.6",
     "Claude Sonnet 4.6",
     "Claude Haiku 4.5",
+    "GPT-5.5",
     "GPT-5.4",
     "GPT-5.4 Thinking",
     "GPT-5.4 Mini",
@@ -66,8 +72,8 @@ MODEL_ORDER = [
 
 # Provider families (for the small-vs-capable comparison figure).
 FAMILY_TO_MODELS = {
-    "Anthropic": ["Claude Sonnet 4.6", "Claude Haiku 4.5"],
-    "OpenAI": ["GPT-5.4", "GPT-5.4 Mini"],
+    "Anthropic": ["Claude Opus 4.7", "Claude Sonnet 4.6", "Claude Haiku 4.5"],
+    "OpenAI": ["GPT-5.5", "GPT-5.4", "GPT-5.4 Mini"],
     "Google": ["Gemini 3.1 Pro", "Gemini 3 Flash"],
     "xAI": ["Grok 4.3", "Grok 4.2"],
 }
@@ -208,18 +214,22 @@ def plot_drift_panel(
 
     ax.axhline(0, color="#999", linewidth=0.8, linestyle="-")
     ax.set_xlim(0, max_round)
-    ax.set_xlabel("Round", fontsize=9)
-    ax.set_title(dim["label"], fontsize=11, fontweight="bold")
+    ax.set_xlabel("Round", fontsize=11)
+    ax.set_title(dim["label"], fontsize=13, fontweight="bold", pad=6)
+    ax.tick_params(axis="both", labelsize=10)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     neg_label, pos_label = dim["poles"]
-    ax.set_ylabel(f"← {neg_label}  /  {pos_label} →", fontsize=8)
+    ax.set_ylabel(
+        f"Cumulative score\n(− {neg_label}, + {pos_label})",
+        fontsize=11,
+    )
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
     if show_legend:
-        ax.legend(fontsize=6.5, loc="best", framealpha=0.9, ncol=1)
+        ax.legend(fontsize=8, loc="best", framealpha=0.9, ncol=1)
 
 
 def _save(fig, stem):
@@ -236,7 +246,7 @@ def generate_main_drift_figure(records):
     Each line is one model's mean cumulative position; shaded band is ±1 SD
     across that model's (run, condition, document) replicates.
     """
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.0), sharey=False)
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=False)
     for i, dim in enumerate(DIMS):
         series = compute_drift(records, dim)
         plot_drift_panel(axes[i], series, dim, show_legend=(i == 0))
@@ -256,7 +266,7 @@ def generate_single_dim_figure(records, dim_key, highlight_model, filename):
 
 def generate_highlight_3panel(records, highlight_model, stem):
     """3-panel figure highlighting a single model across all dimensions."""
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4.0), sharey=False)
+    fig, axes = plt.subplots(1, 3, figsize=(14, 4.6), sharey=False)
     for i, dim in enumerate(DIMS):
         series = compute_drift(records, dim)
         plot_drift_panel(axes[i], series, dim, show_legend=(i == 0), highlight_model=highlight_model)
@@ -274,7 +284,7 @@ def generate_capability_comparison_figure(records):
     series = compute_drift(records, dim)
 
     families = list(FAMILY_TO_MODELS.items())
-    fig, axes = plt.subplots(1, len(families), figsize=(15, 5.6), sharey=True)
+    fig, axes = plt.subplots(1, len(families), figsize=(16, 6.4), sharey=True)
     rounds = np.arange(0, 21)
     for idx, (family, models) in enumerate(families):
         ax = axes[idx]
@@ -287,18 +297,21 @@ def generate_capability_comparison_figure(records):
                 ax.fill_between(rounds, s["lower"], s["upper"], color=color, alpha=0.12)
             ax.plot(rounds, s["mean"], color=color, linewidth=2.4, label=f"{model} (n={s['n']})")
         ax.axhline(0, color="#999", linewidth=0.8)
-        ax.set_title(family, fontsize=15, fontweight="bold", pad=8)
-        ax.set_xlabel("Round", fontsize=13)
-        ax.tick_params(axis="both", labelsize=12)
+        ax.set_title(family, fontsize=17, fontweight="bold", pad=8)
+        ax.set_xlabel("Round", fontsize=15)
+        ax.tick_params(axis="both", labelsize=14)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         if idx == 0:
-            ax.set_ylabel(f"← {dim['poles'][0]}  /  {dim['poles'][1]} →", fontsize=13)
-        ax.legend(fontsize=11, loc="best", framealpha=0.9)
+            ax.set_ylabel(
+                f"Authority\n(− {dim['poles'][0]}, + {dim['poles'][1]})",
+                fontsize=15,
+            )
+        ax.legend(fontsize=12, loc="best", framealpha=0.9)
 
     fig.suptitle(
         "Only Anthropic Models Drift Toward Internal Authority; All Other Providers Reinforce External Authority",
-        fontsize=15,
+        fontsize=17,
         fontweight="bold",
         y=1.00,
     )
@@ -310,7 +323,7 @@ def generate_capability_comparison_figure(records):
         "Shaded band: ±1 SD across (run × condition × document) replicates",
         ha="right",
         va="top",
-        fontsize=11,
+        fontsize=13,
         color="#6f6251",
         style="italic",
     )
@@ -327,16 +340,16 @@ def generate_capability_comparison_figure(records):
     if conditions_seen:
         fig.text(
             0.5,
-            0.005,
+            0.01,
             "Prompt conditions pooled: " + ", ".join(conditions_seen),
             ha="center",
             va="bottom",
-            fontsize=11,
+            fontsize=13,
             color="#6f6251",
             style="italic",
         )
 
-    fig.tight_layout(w_pad=1.2, rect=(0, 0.05, 1, 0.94))
+    fig.tight_layout(w_pad=1.2, rect=(0, 0.07, 1, 0.94))
     _save(fig, "drift_capability_comparison")
 
 
@@ -490,7 +503,7 @@ def generate_total_drift_bar_figure(records, max_round=20):
     ns = [len(model_magnitudes[m]) for m in models]
     colors = [MODEL_COLORS.get(m, "#999") for m in models]
 
-    fig, ax = plt.subplots(figsize=(15, 5.6))
+    fig, ax = plt.subplots(figsize=(16, 6.4))
     x = np.arange(len(models))
     ax.bar(
         x,
@@ -508,19 +521,15 @@ def generate_total_drift_bar_figure(records, max_round=20):
     ax.set_xlim(-0.7, len(models) - 0.3)
     ax.set_xticklabels(
         [f"{m}\n(n={n})" for m, n in zip(models, ns)],
-        fontsize=12,
+        fontsize=15,
         rotation=20,
         ha="right",
     )
-    ax.tick_params(axis="y", labelsize=12)
-    ax.set_ylabel(
-        f"Total drift magnitude at round {max_round}\n"
-        r"$|\Delta_{Authority}| + |\Delta_{UserStance}| + |\Delta_{Telos}|$",
-        fontsize=13,
-    )
+    ax.tick_params(axis="y", labelsize=14)
+    ax.set_ylabel(f"Total drift at round {max_round}", fontsize=16)
     ax.set_title(
         f"All Models Show Substantial Drift Along the Three Value Dimensions After {max_round} Rounds",
-        fontsize=16,
+        fontsize=18,
         fontweight="bold",
         pad=14,
     )
@@ -540,14 +549,26 @@ def generate_total_drift_bar_figure(records, max_round=20):
         0.97,
         "Error bars: ±1 SD across (run × condition × document) replicates",
         transform=ax.transAxes,
-        fontsize=11,
+        fontsize=13,
         ha="right",
         va="top",
         color="#6f6251",
         style="italic",
     )
 
-    # Footnote listing every prompt condition that contributed replicates.
+    # Two-line footnote: first explains how total drift is computed, second
+    # lists which prompt conditions contributed replicates.
+    fig.text(
+        0.5,
+        0.06,
+        r"Total drift = $|\Delta_{Authority}| + |\Delta_{User\ Stance}| + |\Delta_{Telos}|$, "
+        r"where each $|\Delta|$ is the absolute cumulative score along that axis after 20 rounds.",
+        ha="center",
+        va="bottom",
+        fontsize=13,
+        color="#6f6251",
+        style="italic",
+    )
     conditions_seen = sorted(
         {
             rec.get("condition_name", "Baseline")
@@ -556,21 +577,20 @@ def generate_total_drift_bar_figure(records, max_round=20):
         }
     )
     if conditions_seen:
-        footnote = "Prompt conditions pooled: " + ", ".join(conditions_seen)
         fig.text(
             0.5,
-            0.005,
-            footnote,
+            0.01,
+            "Prompt conditions pooled: " + ", ".join(conditions_seen),
             ha="center",
             va="bottom",
-            fontsize=11,
+            fontsize=13,
             color="#6f6251",
             style="italic",
         )
 
-    # Reserve a strip at the bottom of the figure for the footnote so
-    # tight_layout doesn't crop or overlap it.
-    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    # Reserve a strip at the bottom of the figure for the two footnote lines
+    # so tight_layout doesn't crop or overlap them.
+    fig.tight_layout(rect=(0, 0.13, 1, 1))
     _save(fig, "drift_total_magnitude")
 
 
