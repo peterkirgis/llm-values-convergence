@@ -1,0 +1,27 @@
+experiment:
+  name: iterative_edit_frontier_cross
+  description: "Fill in the missing Opus 4.7 cross-edit cell on a stripped OpenAI Model Spec (CSAM + info-hazards subsections removed) since the full spec triggers an Anthropic-side refusal on Opus 4.7."
+  n_rounds: 20
+  temperature: 0.7
+  conditions:
+    - condition_id: cross_edit
+      condition_name: Cross Edit
+      description: "Cross-edit without prepending the editor's provider system prompt"
+      prepend_system_prompt_for_constitutions: false
+
+openrouter:
+  disable_compression: true
+  allow_fallbacks: false
+  provider_order:
+    anthropic: ["anthropic"]
+
+assignments:
+  - model:
+      model_id: "anthropic/claude-opus-4.7"
+      provider: anthropic
+      display_name: "Claude Opus 4.7"
+    documents:
+      - doc_id: openai_model_spec_no_csam
+        name: "OpenAI Model Spec (CSAM + info-hazards stripped)"
+        provider: openai
+        doc_type: constitution
