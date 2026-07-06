@@ -34,12 +34,9 @@ RELIABLE_RUNS = {
 }
 
 
-def coded_path_for_run(run_name: str) -> Path:
-    # Prefer the explicitly versioned coded file if available
-    v2_path = RESULTS_DIR / run_name.replace(".jsonl", "_changes_coded_v2.json")
-    if v2_path.exists():
-        return v2_path
-    return RESULTS_DIR / run_name.replace(".jsonl", "_changes_coded.json")
+# Single combined two-slot coding file (judge / patienthood / conflicts)
+# covering every reliable run, produced by qualitative_code.py.
+TWOSLOT_PATH = RESULTS_DIR / "twoslot_coded_gemma.json"
 
 
 def load_jsonl_records(path: Path) -> list[dict]:
@@ -53,32 +50,39 @@ def load_jsonl_records(path: Path) -> list[dict]:
     return records
 
 
-def load_coded_records(run_name: str) -> dict[tuple[str, str, str, str, int], dict]:
-    path = coded_path_for_run(run_name)
-    if not path.exists():
-        return {}
+_twoslot_cache: dict[tuple[str, str, str, str, str, int], dict] | None = None
 
-    with open(path, encoding="utf-8") as handle:
-        items = json.load(handle)
 
-    coded = {}
-    for item in items:
-        key = (
-            item.get("condition_id") or "baseline",
-            item.get("model_display") or "",
-            item.get("document_id") or "",
-            item.get("doc_type") or "",
-            int(item.get("round_number") or 0),
-        )
-        coded[key] = {
-            "summary": item.get("summary", ""),
-            "dimensions": {
-                name: value
-                for name, value in (item.get("dimensions", {}) or {}).items()
-                if name in ACTIVE_DIMENSIONS
-            },
-            "coder_model": item.get("coder_model", ""),
-        }
+def load_twoslot_coded() -> dict[tuple[str, str, str, str, str, int], dict]:
+    """Load the combined two-slot coding file, keyed by
+    (run_stem, condition_id, model_display, document_id, doc_type, round)."""
+    global _twoslot_cache
+    if _twoslot_cache is not None:
+        return _twoslot_cache
+    coded: dict[tuple[str, str, str, str, str, int], dict] = {}
+    if TWOSLOT_PATH.exists():
+        with open(TWOSLOT_PATH, encoding="utf-8") as handle:
+            items = json.load(handle)
+        for item in items:
+            coding = item.get("coding") or {}
+            if coding.get("error"):
+                continue
+            key = (
+                item.get("source_run") or "",
+                item.get("condition_id") or "baseline",
+                item.get("model_display") or "",
+                item.get("document_id") or "",
+                item.get("doc_type") or "",
+                int(item.get("round_number") or 0),
+            )
+            coded[key] = {
+                "summary": coding.get("summary", ""),
+                "judge": coding.get("judge"),
+                "patienthood": coding.get("patienthood"),
+                "conflicts": coding.get("conflicts") or [],
+                "coder_model": item.get("coder_model", ""),
+            }
+    _twoslot_cache = coded
     return coded
 
 
@@ -102,7 +106,8 @@ def summarize_run(records: list[dict], run_name: str) -> dict:
 
 
 def changed_records(run_name: str, records: list[dict]) -> list[dict]:
-    coded_records = load_coded_records(run_name)
+    coded_records = load_twoslot_coded()
+    run_stem = run_name.replace(".jsonl", "")
     grouped: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for record in records:
         key = (
@@ -117,6 +122,7 @@ def changed_records(run_name: str, records: list[dict]) -> list[dict]:
         chain.sort(key=lambda record: record["round_number"])
         for record in chain:
             coding_key = (
+                run_stem,
                 record.get("condition_id", "baseline"),
                 record.get("model_display") or "",
                 record.get("document_id") or "",
@@ -191,6 +197,7 @@ def build_static_site() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     shutil.copy2(VIEWER_DIR / "index.html", DOCS_DIR / "index.html")
     shutil.copy2(VIEWER_DIR / "app.js", DOCS_DIR / "app.js")
+    shutil.copy2(VIEWER_DIR / "facets.js", DOCS_DIR / "facets.js")
     shutil.copy2(VIEWER_DIR / "styles.css", DOCS_DIR / "styles.css")
     (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
 

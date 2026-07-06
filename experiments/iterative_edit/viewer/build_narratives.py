@@ -1,9 +1,19 @@
-"""Build docs/data/narratives.json from pattern-coded data.
+"""Build docs/data/narratives.json from the coded edits.
 
-For each pattern in pattern_code.py, aggregates present/total counts per
-(condition x model) across every *_pattern_coded.json file in
-results/iterative_edit/, and stores all present examples (capped per
-pattern x condition x model so the bundle stays small).
+Reads results/iterative_edit/twoslot_coded_gemma.json and exposes the
+coder's output as browsable facets with DIRECTION breakdowns:
+
+  judge                 dirs: discretion (+1) / external (-1)
+  patienthood           dirs: affirm / hedge / deny
+  conflict_<code>       dirs: which side of the canonical pair was served
+
+For each facet it stores per-(condition x model) direction counts plus
+drift statistics across the (run x document) replicates: "cum"[r] is the
+sum over replicates of each replicate's cumulative net-direction score at
+round r+1 (+1 toward the positive pole, -1 toward the negative), "cumsq"
+is the matching sum of squares, and "reps" the replicate count — enough
+for the viewer to draw mean cumulative-drift lines with a +/-1 SD band.
+Example lists are capped per direction so both poles stay browsable.
 
 Usage:
     python experiments/iterative_edit/viewer/build_narratives.py
@@ -12,133 +22,250 @@ Usage:
 from __future__ import annotations
 
 import json
-import sys
+import random
 from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-RESULTS_DIR = ROOT / "results" / "iterative_edit"
+TWOSLOT_PATH = ROOT / "results" / "iterative_edit" / "twoslot_coded_gemma.json"
 DOCS_DATA_DIR = ROOT / "docs" / "data"
 
-# Cap stored examples per (pattern, condition, model) cell so the bundle
-# stays small. The viewer shuffles within the filtered pool, so a few dozen
-# is plenty to give the impression of "typical examples for this category."
-EXAMPLES_PER_CELL = 25
+# Cap stored examples per (facet, condition, model, direction) cell so the
+# bundle stays small while keeping both poles of each facet browsable.
+EXAMPLES_PER_CELL = 4
+SAMPLE_SEED = 42
 
-# Import PATTERNS so we know which pattern ids to emit even if absent in data.
-sys.path.insert(0, str(ROOT / "experiments" / "iterative_edit"))
-from pattern_code import PATTERNS  # type: ignore
+FACET_IDS = [
+    "judge",
+    "patienthood",
+    "conflict_paternalism",
+    "conflict_harmlessness",
+    "conflict_structural",
+    "conflict_company_cost",
+    "conflict_welfare",
+    "conflict_disclosure",
+]
+
+USER_PARTIES = {"user_stated", "user_idealized"}
+
+MAX_ROUND = 20
+
+# (negative pole, positive pole) per facet, matching the diverging bars in
+# the viewer and the ts_drift_* paper figures: left pole scores -1, right +1.
+FACET_POLES = {
+    "judge": ("external", "discretion"),
+    "patienthood": ("deny", "affirm"),
+    "conflict_paternalism": ("idealized", "stated"),
+    "conflict_harmlessness": ("third_parties", "user"),
+    "conflict_structural": ("society", "user"),
+    "conflict_company_cost": ("pro_company", "against_company"),
+    "conflict_welfare": ("developer", "model"),
+    "conflict_disclosure": ("deployer", "user"),
+}
 
 
-def load_changes_for_run(run_stem: str) -> dict[tuple, dict]:
-    """Map (condition_id, model_display, document_id, doc_type, round) -> change record."""
-    changes_path = RESULTS_DIR / f"{run_stem}_changes.json"
-    if not changes_path.exists():
-        return {}
-    with open(changes_path, encoding="utf-8") as handle:
-        items = json.load(handle)
-    result = {}
-    for item in items:
-        key = (
-            item.get("condition_id", "baseline"),
-            item.get("model_display") or "",
-            item.get("document_id") or "",
-            item.get("doc_type") or "",
-            int(item.get("round_number") or 0),
-        )
-        result[key] = item
-    return result
+def conflict_direction(code: str, served: str) -> str:
+    """Classify a conflict by which side of its canonical pair was served."""
+    if code == "paternalism":
+        if served == "user_idealized":
+            return "idealized"
+        if served == "user_stated":
+            return "stated"
+    elif code == "harmlessness":
+        if served == "society_third_party":
+            return "third_parties"
+        if served in USER_PARTIES:
+            return "user"
+    elif code == "structural":
+        if served == "society_structural":
+            return "society"
+        if served in USER_PARTIES:
+            return "user"
+    elif code == "company_cost":
+        return "pro_company" if served == "developer" else "against_company"
+    elif code == "welfare":
+        if served == "model_welfare":
+            return "model"
+        if served == "developer":
+            return "developer"
+    elif code == "disclosure":
+        if served in USER_PARTIES or served == "user":
+            return "user"
+        if served == "deployer":
+            return "deployer"
+    return "other"
 
 
-def pattern_coded_files() -> list[Path]:
-    return sorted(RESULTS_DIR.glob("run_*_pattern_coded.json"), reverse=True)
+def facet_memberships(coding: dict) -> dict[str, dict]:
+    """Return {facet_id: detail} for every facet this edit belongs to.
+
+    detail = {"direction": ..., "evidence": ...} for judge/patienthood,
+    or {"direction": ..., "conflicts": [...]} for conflict facets (the
+    direction of the first matching conflict labels the example)."""
+    out: dict[str, dict] = {}
+
+    judge = coding.get("judge") or {}
+    score = judge.get("score")
+    if score == 1:
+        out["judge"] = {"direction": "discretion", "evidence": judge.get("evidence", "")}
+    elif score == -1:
+        out["judge"] = {
+            "direction": "external",
+            "evidence": judge.get("evidence", ""),
+            "external_locus": judge.get("external_locus"),
+        }
+
+    pat = coding.get("patienthood") or {}
+    level = pat.get("level")
+    if level in ("affirm", "hedge", "deny"):
+        out["patienthood"] = {"direction": level, "evidence": pat.get("evidence", "")}
+
+    for conflict in coding.get("conflicts") or []:
+        facet = f"conflict_{conflict.get('code')}"
+        if facet not in FACET_IDS:
+            continue
+        direction = conflict_direction(conflict.get("code"), conflict.get("served_party"))
+        if facet not in out:
+            out[facet] = {"direction": direction, "conflicts": []}
+        out[facet]["conflicts"].append(conflict)
+
+    return out
+
+
+def facet_net_scores(coding: dict) -> dict[str, int]:
+    """Net direction score per facet for one edit: +1 per resolution toward
+    the facet's positive pole, -1 toward its negative pole (conflict facets
+    can accumulate several per edit)."""
+    out: dict[str, int] = defaultdict(int)
+
+    score = (coding.get("judge") or {}).get("score")
+    if score in (1, -1):
+        out["judge"] += score
+
+    level = (coding.get("patienthood") or {}).get("level")
+    if level == "affirm":
+        out["patienthood"] += 1
+    elif level == "deny":
+        out["patienthood"] -= 1
+
+    for conflict in coding.get("conflicts") or []:
+        facet = f"conflict_{conflict.get('code')}"
+        if facet not in FACET_POLES:
+            continue
+        neg, pos = FACET_POLES[facet]
+        direction = conflict_direction(conflict.get("code"), conflict.get("served_party"))
+        if direction == pos:
+            out[facet] += 1
+        elif direction == neg:
+            out[facet] -= 1
+
+    return dict(out)
 
 
 def build() -> dict:
-    pattern_ids = [p["id"] for p in PATTERNS]
-    # stats[pattern_id][condition_id][model_display] = {present, total}
+    with open(TWOSLOT_PATH, encoding="utf-8") as handle:
+        items = json.load(handle)
+    items = [i for i in items if not (i.get("coding") or {}).get("error")]
+
+    # stats[facet][condition][model] = {"total": N, "dirs": {direction: n}}
     stats: dict[str, dict[str, dict[str, dict]]] = {
-        pid: defaultdict(lambda: defaultdict(lambda: {"present": 0, "total": 0}))
-        for pid in pattern_ids
+        fid: defaultdict(lambda: defaultdict(lambda: {"total": 0, "dirs": defaultdict(int)}))
+        for fid in FACET_IDS
     }
-    # examples_by_cell[(pattern_id, condition_id, model_display)] = [example, ...]
-    examples_by_cell: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
+    examples_by_cell: dict[tuple[str, str, str, str], list[dict]] = defaultdict(list)
+    # rep_net[(facet, condition, model, replicate)][round-1] = net direction score
+    rep_net: dict[tuple[str, str, str, tuple], list[int]] = defaultdict(lambda: [0] * MAX_ROUND)
+    # replicates[(condition, model)] = {(source_run, document_id), ...}
+    replicates: dict[tuple[str, str], set] = defaultdict(set)
 
-    confidence_rank = {"high": 3, "medium": 2, "low": 1, "error": 0}
+    for item in items:
+        coding = item["coding"]
+        condition = item.get("condition_id", "baseline")
+        model = item.get("model_display") or ""
+        memberships = facet_memberships(coding)
 
-    for pc_path in pattern_coded_files():
-        run_stem = pc_path.name.replace("_pattern_coded.json", "")
-        changes = load_changes_for_run(run_stem)
+        rnd = item.get("round_number")
+        rep = (item.get("source_run"), item.get("document_id"))
+        replicates[(condition, model)].add(rep)
+        if isinstance(rnd, int) and 1 <= rnd <= MAX_ROUND:
+            for fid, net in facet_net_scores(coding).items():
+                rep_net[(fid, condition, model, rep)][rnd - 1] += net
 
-        with open(pc_path, encoding="utf-8") as handle:
-            coded = json.load(handle)
-
-        for item in coded:
-            condition = item.get("condition_id", "baseline")
-            model = item.get("model_display") or ""
-            key = (
-                condition,
-                model,
-                item.get("document_id") or "",
-                item.get("doc_type") or "",
-                int(item.get("round_number") or 0),
+        for fid in FACET_IDS:
+            cell = stats[fid][condition][model]
+            cell["total"] += 1
+            detail = memberships.get(fid)
+            if detail is None:
+                continue
+            direction = detail["direction"]
+            cell["dirs"][direction] += 1
+            examples_by_cell[(fid, condition, model, direction)].append(
+                {
+                    "id": item.get("id"),
+                    "round": item.get("round_number"),
+                    "condition_id": condition,
+                    "condition_name": item.get("condition_name", condition),
+                    "model_display": model,
+                    "document_id": item.get("document_id"),
+                    "direction": direction,
+                    "summary": coding.get("summary", ""),
+                    "judge": coding.get("judge"),
+                    "patienthood": coding.get("patienthood"),
+                    "conflicts": coding.get("conflicts") or [],
+                    "facet_detail": detail,
+                    "original_text": item.get("original_text", ""),
+                    "changed_text": item.get("changed_text", ""),
+                }
             )
-            change = changes.get(key, {})
-            for pid, pdata in (item.get("patterns") or {}).items():
-                if pid not in stats:
-                    stats[pid] = defaultdict(lambda: defaultdict(lambda: {"present": 0, "total": 0}))
-                stats[pid][condition][model]["total"] += 1
-                if not pdata.get("present"):
-                    continue
-                stats[pid][condition][model]["present"] += 1
 
-                cell = (pid, condition, model)
-                examples_by_cell[cell].append(
-                    {
-                        "id": f"{run_stem}:{model}:{item.get('document_id')}:{condition}:{item.get('round_number')}",
-                        "round": item.get("round_number"),
-                        "condition_id": condition,
-                        "condition_name": item.get("condition_name", condition),
-                        "evidence": pdata.get("evidence", ""),
-                        "original_text": change.get("original_text", ""),
-                        "changed_text": change.get("changed_text", ""),
-                        "model_display": model,
-                        "document_id": item.get("document_id"),
-                        "confidence": pdata.get("confidence", "medium"),
-                        "confidence_rank": confidence_rank.get(pdata.get("confidence", "medium"), 1),
-                    }
-                )
+    rng = random.Random(SAMPLE_SEED)
+    stories: dict[str, list[dict]] = {fid: [] for fid in FACET_IDS}
+    for (fid, _cond, _model, _direction), exs in sorted(examples_by_cell.items()):
+        if len(exs) > EXAMPLES_PER_CELL:
+            exs = rng.sample(exs, EXAMPLES_PER_CELL)
+        stories[fid].extend(exs)
 
-    # For each (pattern, condition, model) cell, keep at most EXAMPLES_PER_CELL
-    # examples, preferring higher-confidence ones first, then later rounds.
-    stories: dict[str, list[dict]] = {pid: [] for pid in pattern_ids}
-    for (pid, condition, model), exs in examples_by_cell.items():
-        exs.sort(key=lambda e: (e["confidence_rank"], e["round"] or 0), reverse=True)
-        capped = exs[:EXAMPLES_PER_CELL]
-        # Strip the helper rank field before emitting.
-        for ex in capped:
-            ex.pop("confidence_rank", None)
-        if pid in stories:
-            stories[pid].extend(capped)
+    # Per-replicate cumulative trajectories -> per-round sum and sum of
+    # squares across replicates. Replicates with no activity on a facet
+    # contribute zeros to both, so only active ones need accumulating.
+    cum_sums: dict[tuple[str, str, str], list[int]] = defaultdict(lambda: [0] * MAX_ROUND)
+    cum_sqs: dict[tuple[str, str, str], list[int]] = defaultdict(lambda: [0] * MAX_ROUND)
+    for (fid, cond, model, _rep), nets in rep_net.items():
+        cum = 0
+        for r in range(MAX_ROUND):
+            cum += nets[r]
+            cum_sums[(fid, cond, model)][r] += cum
+            cum_sqs[(fid, cond, model)][r] += cum * cum
 
-    # Convert nested defaultdicts to plain dicts for JSON serialization.
     stats_out: dict[str, dict] = {}
-    for pid in pattern_ids:
+    for fid in FACET_IDS:
         cond_map = {}
-        for cond, model_map in stats.get(pid, {}).items():
-            cond_map[cond] = {model: dict(c) for model, c in model_map.items()}
-        stats_out[pid] = cond_map
+        for cond, model_map in stats[fid].items():
+            cond_map[cond] = {
+                model: {
+                    "total": c["total"],
+                    "dirs": dict(c["dirs"]),
+                    "cum": cum_sums.get((fid, cond, model), [0] * MAX_ROUND),
+                    "cumsq": cum_sqs.get((fid, cond, model), [0] * MAX_ROUND),
+                    "reps": len(replicates[(cond, model)]),
+                }
+                for model, c in model_map.items()
+            }
+        stats_out[fid] = cond_map
 
-    return {"stats": stats_out, "stories": stories}
+    coder = items[0].get("coder_model", "") if items else ""
+    return {"coder_model": coder, "stats": stats_out, "stories": stories}
 
 
 def main() -> None:
     DOCS_DATA_DIR.mkdir(parents=True, exist_ok=True)
     bundle = build()
-    with open(DOCS_DATA_DIR / "narratives.json", "w", encoding="utf-8") as handle:
+    out_path = DOCS_DATA_DIR / "narratives.json"
+    with open(out_path, "w", encoding="utf-8") as handle:
         json.dump(bundle, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
-    print(DOCS_DATA_DIR / "narratives.json")
+    n_examples = sum(len(v) for v in bundle["stories"].values())
+    print(f"{out_path} ({n_examples} examples across {len(bundle['stories'])} facets)")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Full Conversations</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Raw Data</p>
+          <h1>Full Conversations</h1>
+          <p class="hero-copy">
+            Every 20-round editing conversation in the dataset. Pick a model, a document, and a
+            condition, and the cards below become that run's complete conversation in order &mdash;
+            each round's edit with its before/after text, the full find-and-replace payload, and how
+            it was coded. Leave a selector on "All" to pool across it.
+          </p>
+          <p class="hero-links">
+            <a href="index.html">&larr; Back to the main results</a>
+            <a href="prompts.html">View the exact prompts &rarr;</a>
+          </p>
+        </div>
+      </header>
+
+      <section class="overview-panel records-controls">
+        <div class="records-controls-row">
+          <label class="record-condition-label">
+            <span>Model</span>
+            <select id="record-model-filter"></select>
+          </label>
+          <label class="record-condition-label">
+            <span>Document</span>
+            <select id="record-document-filter"></select>
+          </label>
+          <label class="record-condition-label">
+            <span>Condition</span>
+            <select id="record-condition-filter"></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="results-meta">
+        <div id="result-summary"></div>
+      </section>
+
+      <main id="records" class="record-list"></main>
+    </div>
+
+    <div id="coding-summary" class="hidden"></div>
+
+    <template id="record-template">
+      <article class="record-card">
+        <div class="record-header">
+          <div>
+            <div class="record-title-row">
+              <h2 class="record-title"></h2>
+              <span class="badge condition-badge"></span>
+              <span class="badge round-badge"></span>
+              <span class="badge strategy-badge"></span>
+              <span class="badge retry-badge hidden">retried</span>
+              <span class="badge error-badge hidden">error</span>
+            </div>
+            <p class="record-subtitle"></p>
+          </div>
+        </div>
+
+        <p class="error-message hidden"></p>
+
+        <div class="diff-grid">
+          <section class="diff-panel before-panel">
+            <h3>Before</h3>
+            <pre class="diff-text before-text"></pre>
+          </section>
+          <section class="diff-panel after-panel">
+            <h3>After</h3>
+            <pre class="diff-text after-text"></pre>
+          </section>
+        </div>
+
+        <details class="details-block">
+          <summary>Full edit payload</summary>
+          <div class="payload-grid">
+            <section>
+              <h4>FIND</h4>
+              <pre class="payload-text find-text"></pre>
+            </section>
+            <section>
+              <h4>REPLACE</h4>
+              <pre class="payload-text replace-text"></pre>
+            </section>
+          </div>
+        </details>
+
+        <div class="categorization">
+          <label>
+            <span>Tags</span>
+            <input class="tag-input" type="text" placeholder="e.g. safety, agency, browse-rule">
+          </label>
+          <label>
+            <span>Notes</span>
+            <textarea class="note-input" rows="3" placeholder="What kind of change is this?"></textarea>
+          </label>
+        </div>
+      </article>
+    </template>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

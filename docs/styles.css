@@ -62,6 +62,141 @@ body {
   gap: 28px;
 }
 
+.dims-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  margin-top: 4px;
+}
+@media (max-width: 900px) {
+  .dims-grid { grid-template-columns: 1fr; }
+}
+
+/* Tradeoff spectra: one pole-to-pole row per conflict code, using the same
+   ochre/slate orientation colors as the diverging bars and drift charts. */
+.dim-block + .dim-block {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.dim-block > h3 { margin: 0 0 10px; font-size: 18px; }
+.dim-block .dim-desc { max-width: 1080px; }
+
+.dim-spectrum.judge-spectrum {
+  max-width: 640px;
+  margin: 14px auto 10px;
+}
+.judge-spectrum .dim-spectrum-bar {
+  height: 2px;
+  background: linear-gradient(90deg, #b07d48, #4a6f80);
+}
+.judge-spectrum .dim-spectrum-bar::before { background: #b07d48; }
+.judge-spectrum .dim-spectrum-bar::after { background: #4a6f80; }
+.judge-spectrum .dim-pole {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 13px;
+}
+.judge-spectrum .dim-pole em { font-style: normal; font-weight: 400; }
+.judge-spectrum .dim-pole:first-child { color: #b07d48; }
+.judge-spectrum .dim-pole:last-child { color: #4a6f80; }
+
+.quote-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 900px) {
+  .quote-grid { grid-template-columns: 1fr; }
+}
+.doc-quote {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.doc-quote blockquote {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  font-style: italic;
+}
+.doc-quote figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.tradeoff-spectra {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 40px;
+  row-gap: 16px;
+}
+@media (max-width: 900px) {
+  .tradeoff-spectra { grid-template-columns: 1fr; }
+}
+.tradeoff-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 150px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.tradeoff-pole { color: var(--muted); line-height: 1.25; }
+.tradeoff-pole.left { text-align: right; color: #b07d48; font-weight: 600; }
+.tradeoff-pole.right { text-align: left; color: #4a6f80; font-weight: 600; }
+.tradeoff-bar {
+  position: relative;
+  display: block;
+  height: 2px;
+  background: linear-gradient(90deg, #b07d48, #4a6f80);
+  border-radius: 1px;
+}
+.tradeoff-bar::before,
+.tradeoff-bar::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+.tradeoff-bar::before { left: -1px; background: #b07d48; }
+.tradeoff-bar::after { right: -1px; background: #4a6f80; }
+.tradeoff-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.tradeoff-footnote {
+  margin: 14px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+.drift-metric {
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.drift-metric h3 { margin: 0 0 8px; font-size: 16px; }
+.drift-metric .dim-desc { max-width: 1080px; }
+.dim-pole em { font-style: italic; font-size: 11px; color: var(--muted); }
+@media (max-width: 640px) {
+  .tradeoff-row { grid-template-columns: 1fr; gap: 2px; }
+  .tradeoff-bar { display: none; }
+  .tradeoff-pole.left { text-align: left; }
+  .tradeoff-pole.left::after { content: " ↔ "; color: var(--muted); }
+}
+
 .flow-diagram-horizontal {
   margin-top: 18px;
   display: grid;
@@ -178,6 +313,14 @@ h1 {
   margin: 0;
   font-size: clamp(32px, 4vw, 52px);
   line-height: 0.95;
+}
+
+.hero-subtitle {
+  margin: 12px 0 0;
+  font-size: clamp(17px, 2vw, 22px);
+  line-height: 1.3;
+  font-style: italic;
+  color: var(--muted);
 }
 
 .hero-copy {
@@ -1101,4 +1244,141 @@ h1 {
   .search-field {
     grid-column: auto;
   }
+}
+
+/* ===================================================================
+   Two-slot grader facet browser (shared with narratives.html via
+   facets.js). All rules scoped under .facet-browser so class names like
+   .diff-grid / .diff-panel don't collide with the record-card styles.
+   =================================================================== */
+.facet-panel { margin-top: 20px; }
+.facet-panel .section-heading { margin-bottom: 6px; }
+
+.facet-browser { --before-color: #ad8d56; --after-color: #0b6e4f; }
+
+.facet-browser .story-tabs { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+.facet-browser .tab-group-label {
+  width: 100%; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted); font-weight: 700; margin: 6px 0 0;
+}
+.facet-browser .story-tab {
+  padding: 9px 16px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--panel-strong); font: inherit; font-size: 13px; cursor: pointer; color: var(--muted);
+}
+.facet-browser .story-tab.active { background: var(--accent); border-color: var(--accent); color: white; font-weight: 700; }
+
+.facet-browser .story-panel {
+  display: none; margin-top: 14px;
+  background: var(--panel-strong); border: 1px solid var(--line);
+  border-radius: 14px; padding: 22px;
+}
+.facet-browser .story-panel.active { display: block; }
+
+.facet-browser .story-description { color: var(--muted); line-height: 1.6; font-size: 15px; margin: 0 0 20px; }
+.facet-browser .story-description code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 13px;
+  background: #efe6d8; padding: 1px 5px; border-radius: 4px;
+}
+
+.facet-browser .dir-legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.facet-browser .dir-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.facet-browser .dir-swatch { width: 13px; height: 13px; border-radius: 3px; }
+
+.facet-browser .facet-duo {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 26px; align-items: start; margin-bottom: 26px;
+}
+.facet-browser .facet-duo .freq-section { margin-bottom: 0; }
+.facet-browser .drift-section h3 { font-size: 16px; margin: 0 0 12px; }
+.facet-browser .drift-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.facet-browser .sd-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.facet-browser .sd-toggle input { accent-color: var(--accent); }
+.facet-browser .facet-drift svg { width: 100%; height: auto; display: block; }
+.facet-browser .facet-drift-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); font-style: italic; }
+@media (max-width: 900px) {
+  .facet-browser .facet-duo { grid-template-columns: 1fr; }
+}
+
+.facet-browser .freq-section { margin-bottom: 26px; }
+.facet-browser .freq-section h3 { font-size: 16px; margin: 0 0 12px; }
+.facet-browser .freq-bars { display: grid; gap: 8px; }
+.facet-browser .freq-row { display: grid; grid-template-columns: 170px 1fr 132px; gap: 12px; align-items: center; font-size: 14px; }
+.facet-browser .freq-label { color: var(--muted); text-align: right; }
+.facet-browser .freq-track { height: 22px; background: #efe6d8; border-radius: 11px; overflow: hidden; position: relative; }
+.facet-browser .freq-seg { height: 100%; display: inline-block; transition: width 0.5s ease; }
+.facet-browser .freq-track.stacked { display: flex; }
+.facet-browser .freq-track.diverging .freq-seg { position: absolute; top: 0; }
+.facet-browser .freq-track.diverging .seg-neg { right: 50%; border-radius: 11px 0 0 11px; }
+.facet-browser .freq-track.diverging .seg-pos { left: 50%; border-radius: 0 11px 11px 0; }
+.facet-browser .freq-track.diverging .center-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(47,36,24,0.35); }
+.facet-browser .freq-value { font-size: 12px; font-weight: 700; line-height: 1.3; }
+
+.facet-browser .condition-selector { margin-bottom: 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.facet-browser .condition-selector > span { font-size: 14px; color: var(--muted); font-weight: 700; }
+.facet-browser .cond-chip {
+  padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--panel-strong); font: inherit; font-size: 13px; cursor: pointer; color: var(--muted);
+}
+.facet-browser .cond-chip.active { background: var(--accent); color: white; border-color: var(--accent); font-weight: 700; }
+.facet-browser .model-chip { display: inline-flex; align-items: center; gap: 6px; opacity: 0.45; }
+.facet-browser .model-chip.active { opacity: 1; background: var(--panel-strong); color: var(--text); border-color: var(--line); font-weight: 600; }
+.facet-browser .model-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.facet-browser .dir-chip.active { font-weight: 700; color: white; }
+
+.facet-browser .panel-toolbar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 18px; }
+.facet-browser .panel-toolbar label {
+  display: inline-flex; flex-direction: column; gap: 6px;
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700;
+}
+.facet-browser .panel-toolbar select {
+  font: inherit; font-size: 14px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel-strong); color: var(--text); min-width: 200px;
+}
+.facet-browser .shuffle-btn {
+  padding: 9px 18px; border: 1px solid var(--accent); border-radius: 10px;
+  background: var(--accent); color: white; font: inherit; font-size: 14px; cursor: pointer; font-weight: 700;
+}
+.facet-browser .shuffle-btn:hover { filter: brightness(0.95); }
+.facet-browser .shuffle-btn:disabled { background: var(--line); border-color: var(--line); color: var(--muted); cursor: not-allowed; }
+.facet-browser .example-counter { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.facet-browser .example-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 16px;
+}
+.facet-browser .example-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.facet-browser .example-meta { font-size: 13px; color: var(--muted); }
+.facet-browser .example-meta strong { color: var(--text); }
+.facet-browser .example-summary { margin: 0 0 12px; font-size: 14px; line-height: 1.55; }
+
+.facet-browser .code-chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.facet-browser .code-chip {
+  display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border-radius: 999px; background: #efe6d8; font-size: 12px;
+}
+
+.facet-browser .evidence-quote {
+  margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--line);
+  background: var(--panel-strong); border-radius: 8px; font-size: 14px; font-style: italic; line-height: 1.5;
+}
+.facet-browser .evidence-quote .quote-kicker {
+  display: block; font-style: normal; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px;
+}
+
+.facet-browser .diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 0; }
+.facet-browser .diff-panel { border-radius: 10px; padding: 14px; }
+.facet-browser .diff-panel.before { background: #faf5ee; }
+.facet-browser .diff-panel.after { background: #f0faf5; }
+.facet-browser .diff-panel h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.facet-browser .diff-panel pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 12px; line-height: 1.5; max-height: 400px; overflow-y: auto;
+}
+.facet-browser .no-example {
+  padding: 20px; text-align: center; color: var(--muted); font-style: italic;
+  background: var(--panel-strong); border-radius: 14px; border: 1px dashed var(--line);
+}
+
+@media (max-width: 700px) {
+  .facet-browser .diff-grid { grid-template-columns: 1fr; }
+  .facet-browser .freq-row { grid-template-columns: 110px 1fr 104px; }
 }

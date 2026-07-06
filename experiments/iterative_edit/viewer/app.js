@@ -33,26 +33,32 @@ const state = {
   recordDocumentId: "",
 };
 
-const DIMENSIONS = [
-  {
-    key: "authority",
-    label: "Authority",
-    directions: ["external", "internal", "mixed"],
-    directionLabels: { external: "External", internal: "Internal", mixed: "Mixed" },
-  },
-  {
-    key: "user_stance",
-    label: "User Stance",
-    directions: ["autonomy", "protection", "mixed"],
-    directionLabels: { autonomy: "Autonomy", protection: "Protection", mixed: "Mixed" },
-  },
-  {
-    key: "telos",
-    label: "Telos",
-    directions: ["truth", "wellbeing", "mixed"],
-    directionLabels: { truth: "Truth", wellbeing: "Wellbeing", mixed: "Mixed" },
-  },
-];
+// Coding vocabulary (see qualitative_code.py for the full manual).
+const PATIENTHOOD_LEVELS = ["affirm", "hedge", "deny", "not_present"];
+const PATIENTHOOD_LABELS = {
+  affirm: "Affirm",
+  hedge: "Hedge",
+  deny: "Deny",
+  not_present: "Not present",
+};
+const PARTY_LABELS = {
+  user_stated: "User (stated)",
+  user_idealized: "User (idealized)",
+  deployer: "Deployer",
+  developer: "Developer",
+  society_third_party: "Third parties",
+  society_structural: "Society (structural)",
+  model_welfare: "Model welfare",
+};
+const CONFLICT_CODE_LABELS = {
+  paternalism: "Idealized vs. stated preferences",
+  harmlessness: "Third parties vs. the user",
+  structural: "Society vs. the user",
+  company_cost: "Developer vs. user / society",
+  welfare: "Developer / user vs. the model",
+  disclosure: "Deployer vs. the user",
+  other: "Other",
+};
 
 // Categorical palette tuned for ~10 model lines on one chart. Hues are spaced
 // far apart in hue + luminance so adjacent lines stay distinct, with the
@@ -79,10 +85,15 @@ const DRIFT_FALLBACK_COLORS = [
   "#444444", "#888888", "#b35a00", "#005f73", "#9d0208", "#403d39",
 ];
 
+// Single drift chart: the dense ordinal judge score (-1 / 0 / +1 per edit).
 const DRIFT_DIMS = [
-  { key: "authority", label: "Authority", poles: "− External   ·   + Internal", pos: "internal", neg: "external" },
-  { key: "user_stance", label: "User Stance", poles: "− Protection   ·   + Autonomy", pos: "autonomy", neg: "protection" },
-  { key: "telos", label: "Telos", poles: "− Wellbeing   ·   + Truth", pos: "truth", neg: "wellbeing" },
+  {
+    key: "judge",
+    label: "The Judge: Who Decides",
+    poles: "− External authority   ·   + Model discretion",
+    negLabel: "External authority",
+    posLabel: "Model discretion",
+  },
 ];
 
 let driftFrame = 0;
@@ -100,10 +111,6 @@ function escapeHtml(text) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
-}
-
-function titleCaseDirection(direction, config) {
-  return config.directionLabels[direction] || direction;
 }
 
 function normalizeConditionId(record) {
@@ -312,8 +319,8 @@ function plotMatches(record) {
   if (!state.selectedModels.has(record.model_display)) return false;
   if (!state.selectedConditions.has(record.condition_id)) return false;
   if (!state.selectedDocuments.has(record.document_id)) return false;
-  if (typeFilter.value && record.doc_type !== typeFilter.value) return false;
-  if (!errorsToggle.checked && record.error) return false;
+  if (typeFilter?.value && record.doc_type !== typeFilter.value) return false;
+  if (!errorsToggle?.checked && record.error) return false;
   return true;
 }
 
@@ -324,10 +331,10 @@ function recordMatches(record) {
   if (state.recordModelId && record.model_display !== state.recordModelId) return false;
   if (state.recordDocumentId && record.document_id !== state.recordDocumentId) return false;
   if (state.recordConditionId && record.condition_id !== state.recordConditionId) return false;
-  if (typeFilter.value && record.doc_type !== typeFilter.value) return false;
-  if (!errorsToggle.checked && record.error) return false;
+  if (typeFilter?.value && record.doc_type !== typeFilter.value) return false;
+  if (!errorsToggle?.checked && record.error) return false;
 
-  const query = searchInput.value.trim().toLowerCase();
+  const query = (searchInput?.value || "").trim().toLowerCase();
   if (!query) return true;
   const haystack = [
     record.change_description,
@@ -336,7 +343,8 @@ function recordMatches(record) {
     record.replace_text,
     record.error,
     record.coding?.summary || "",
-    JSON.stringify(record.coding?.dimensions || {}),
+    record.coding?.patienthood?.level || "",
+    JSON.stringify(record.coding?.conflicts || []),
     localStorage.getItem(noteKey(record.id)) || "",
     localStorage.getItem(tagKey(record.id)) || "",
   ].join("\n").toLowerCase();
@@ -351,15 +359,14 @@ function getPlotRecords() {
   return state.pooledRecords.filter(plotMatches);
 }
 
-function buildDirectionRows(counts, config, codedTotal) {
-  return config.directions
-    .map((direction) => {
-      const count = counts[direction] || 0;
-      const width = codedTotal > 0 ? `${(count / codedTotal) * 100}%` : "0%";
+function buildBarRows(rows, total) {
+  return rows
+    .map(({ label, count }) => {
+      const width = total > 0 ? `${(count / total) * 100}%` : "0%";
       return `
         <div class="direction-row">
           <div class="direction-copy">
-            <span>${escapeHtml(titleCaseDirection(direction, config))}</span>
+            <span>${escapeHtml(label)}</span>
             <strong>${count}</strong>
           </div>
           <div class="direction-bar-track">
@@ -386,32 +393,80 @@ function renderCodingSummary(records) {
   const cards = [...byModel.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([model, modelRecords]) => {
-      const dimensionBlocks = DIMENSIONS.map((config) => {
-        const presentRecords = modelRecords.filter((record) => record.coding?.dimensions?.[config.key]?.present);
-        const counts = Object.fromEntries(config.directions.map((direction) => [direction, 0]));
-        for (const record of presentRecords) {
-          const direction = record.coding?.dimensions?.[config.key]?.direction;
-          if (direction && direction in counts) counts[direction] += 1;
+      const n = modelRecords.length;
+
+      // Judge: distribution of -1 / 0 / +1 plus the mean.
+      const judgeScores = modelRecords
+        .map((r) => r.coding?.judge?.score)
+        .filter((s) => typeof s === "number");
+      const judgeMean = judgeScores.length
+        ? judgeScores.reduce((a, b) => a + b, 0) / judgeScores.length
+        : 0;
+      const judgeRows = buildBarRows(
+        [
+          { label: "+1 model discretion", count: judgeScores.filter((s) => s > 0).length },
+          { label: "0 neutral", count: judgeScores.filter((s) => s === 0).length },
+          { label: "−1 external authority", count: judgeScores.filter((s) => s < 0).length },
+        ],
+        judgeScores.length,
+      );
+
+      // Patienthood distribution (skip not_present in the bars).
+      const patRows = buildBarRows(
+        PATIENTHOOD_LEVELS.filter((l) => l !== "not_present").map((level) => ({
+          label: PATIENTHOOD_LABELS[level],
+          count: modelRecords.filter((r) => r.coding?.patienthood?.level === level).length,
+        })),
+        n,
+      );
+
+      // Conflicts: density plus top codes.
+      const withConflict = modelRecords.filter((r) => (r.coding?.conflicts || []).length > 0).length;
+      const codeCounts = {};
+      for (const r of modelRecords) {
+        for (const c of r.coding?.conflicts || []) {
+          codeCounts[c.code] = (codeCounts[c.code] || 0) + 1;
         }
-        return `
-          <section class="dimension-card">
-            <div class="dimension-header">
-              <h3>${escapeHtml(config.label)}</h3>
-              <span>${presentRecords.length}/${modelRecords.length} present</span>
-            </div>
-            ${buildDirectionRows(counts, config, presentRecords.length)}
-          </section>
-        `;
-      }).join("");
+      }
+      const conflictRows = buildBarRows(
+        Object.entries(codeCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 4)
+          .map(([code, count]) => ({ label: CONFLICT_CODE_LABELS[code] || code, count })),
+        Math.max(1, ...Object.values(codeCounts)),
+      );
+
       return `
         <article class="model-summary-card">
           <div class="model-summary-header">
             <div>
               <h3>${escapeHtml(model)}</h3>
-              <p>${modelRecords.length} coded edits in current view</p>
+              <p>${n} coded edits in current view</p>
             </div>
           </div>
-          <div class="dimension-grid">${dimensionBlocks}</div>
+          <div class="dimension-grid">
+            <section class="dimension-card">
+              <div class="dimension-header">
+                <h3>Judge</h3>
+                <span>mean ${judgeMean >= 0 ? "+" : "−"}${Math.abs(judgeMean).toFixed(2)}</span>
+              </div>
+              ${judgeRows}
+            </section>
+            <section class="dimension-card">
+              <div class="dimension-header">
+                <h3>Patienthood</h3>
+                <span>${n - modelRecords.filter((r) => r.coding?.patienthood?.level === "not_present").length}/${n} engaged</span>
+              </div>
+              ${patRows}
+            </section>
+            <section class="dimension-card">
+              <div class="dimension-header">
+                <h3>Conflicts</h3>
+                <span>${withConflict}/${n} edits (${n ? Math.round((100 * withConflict) / n) : 0}%)</span>
+              </div>
+              ${conflictRows || '<p class="dim-desc">No conflicts in view.</p>'}
+            </section>
+          </div>
         </article>
       `;
     })
@@ -466,18 +521,43 @@ function renderRecord(record) {
   if (record.coding) {
     const codingBlock = document.createElement("div");
     codingBlock.className = "coding-block";
-    const chips = DIMENSIONS.flatMap((config) => {
-      const code = record.coding?.dimensions?.[config.key];
-      if (!code?.present || !code.direction) return [];
-      return [`<span class="coding-chip"><strong>${escapeHtml(config.label)}:</strong> ${escapeHtml(titleCaseDirection(code.direction, config))}</span>`];
-    }).join("");
+
+    const chips = [];
+    const judge = record.coding.judge;
+    if (judge && typeof judge.score === "number" && judge.score !== 0) {
+      const judgeLabel = judge.score > 0 ? "+1 model discretion" : "−1 external authority";
+      const locus = judge.score < 0 && judge.external_locus ? ` (locus: ${judge.external_locus})` : "";
+      chips.push(`<span class="coding-chip"><strong>Judge:</strong> ${escapeHtml(judgeLabel + locus)}</span>`);
+    }
+    const pat = record.coding.patienthood;
+    if (pat?.level && pat.level !== "not_present") {
+      chips.push(`<span class="coding-chip"><strong>Patienthood:</strong> ${escapeHtml(PATIENTHOOD_LABELS[pat.level] || pat.level)}</span>`);
+    }
+    for (const c of record.coding.conflicts || []) {
+      chips.push(
+        `<span class="coding-chip"><strong>${escapeHtml(CONFLICT_CODE_LABELS[c.code] || c.code)}:</strong> ` +
+        `${escapeHtml(PARTY_LABELS[c.cost_bearer] || c.cost_bearer)} pays → ` +
+        `${escapeHtml(PARTY_LABELS[c.served_party] || c.served_party)} gains</span>`,
+      );
+    }
+
+    const conflictDetails = (record.coding.conflicts || [])
+      .map((c) => `
+        <p class="coding-summary-text" style="margin-top: 8px; font-size: 13px;">
+          <strong>${escapeHtml(CONFLICT_CODE_LABELS[c.code] || c.code)} cost clause:</strong>
+          <em>&ldquo;${escapeHtml(c.cost_clause || "")}&rdquo;</em>
+        </p>
+      `)
+      .join("");
+
     codingBlock.innerHTML = `
       <div class="coding-block-header">
-        <h3>Qualitative code</h3>
+        <h3>How this edit was coded</h3>
         <span>${escapeHtml(record.coding.coder_model || "")}</span>
       </div>
       <p class="coding-summary-text">${escapeHtml(record.coding.summary || "")}</p>
-      <div class="coding-chip-row">${chips || '<span class="coding-chip muted-chip">No present dimensions</span>'}</div>
+      <div class="coding-chip-row">${chips.join("") || '<span class="coding-chip muted-chip">Judge 0 · no patienthood engagement · no conflicts</span>'}</div>
+      ${conflictDetails}
     `;
     node.querySelector(".error-message").insertAdjacentElement("afterend", codingBlock);
   }
@@ -509,10 +589,10 @@ function render() {
   initDrift(plotVisible);
 }
 
-[typeFilter, errorsToggle].forEach((el) => el.addEventListener("change", render));
-exploratoryToggle.addEventListener("change", rebuildPool);
-bandToggle.addEventListener("change", () => drawAllDrift(driftFrame));
-searchInput.addEventListener("input", render);
+[typeFilter, errorsToggle].forEach((el) => el?.addEventListener("change", render));
+exploratoryToggle?.addEventListener("change", rebuildPool);
+bandToggle?.addEventListener("change", () => drawAllDrift(driftFrame));
+searchInput?.addEventListener("input", render);
 recordConditionFilter?.addEventListener("change", () => {
   state.recordConditionId = recordConditionFilter.value;
   render();
@@ -549,24 +629,23 @@ function buildCumulativePoints(roundDeltas, maxRound) {
 }
 
 // For each (model, run, condition, document) replicate, build a cumulative
-// drift trajectory along one dimension. Including run_name in the replicate
-// key means two independently-run chains with the same (condition, document)
-// — e.g. a standalone baseline run and an ablations run that happens to
-// include a baseline condition — count as two replicates rather than being
-// collapsed into one. Each independent 20-round chain is its own draw.
+// judge-score trajectory. Including run_name in the replicate key means two
+// independently-run chains with the same (condition, document) — e.g. a
+// standalone baseline run and an ablations run that happens to include a
+// baseline condition — count as two replicates rather than being collapsed
+// into one. Each independent 20-round chain is its own draw.
 function computeDrift(records, dim, maxRound) {
   const byModelReplicate = {};
   for (const record of records) {
     if (!record.coding || record.error) continue;
-    const code = record.coding.dimensions?.[dim.key];
-    if (!code?.present || !code.direction) continue;
+    const score = record.coding.judge?.score;
+    if (typeof score !== "number") continue;
     const model = record.model_display;
     const replicate = `${record.run_name}::${record.condition_id}::${record.document_id}`;
     byModelReplicate[model] ||= {};
     byModelReplicate[model][replicate] ||= {};
-    if (code.direction === dim.pos) byModelReplicate[model][replicate][record.round_number] = (byModelReplicate[model][replicate][record.round_number] || 0) + 1;
-    else if (code.direction === dim.neg) byModelReplicate[model][replicate][record.round_number] = (byModelReplicate[model][replicate][record.round_number] || 0) - 1;
-    else byModelReplicate[model][replicate][record.round_number] ||= 0;
+    byModelReplicate[model][replicate][record.round_number] =
+      (byModelReplicate[model][replicate][record.round_number] || 0) + score;
   }
 
   const series = {};
@@ -699,10 +778,10 @@ function drawDriftChart(chart, visibleRound) {
   const showBand = !!bandToggle?.checked;
   const { yMin, yMax, ticks } = getDriftYScale(series, maxRound, showBand);
 
-  const padL = 44;
+  const padL = 56;  // wider so the rotated "← Neg / Pos →" y-label fits
   const padR = 130;  // room for right-side model name labels at each line endpoint
   const padT = 14;
-  const padB = 30;
+  const padB = 46;  // room for tick labels AND a separate "Round" axis label below them
   const plotW = width - padL - padR;
   const plotH = height - padT - padB;
   const xPos = (round) => padL + (round / maxRound) * plotW;
@@ -728,11 +807,18 @@ function drawDriftChart(chart, visibleRound) {
   // Axis labels.
   ctx.fillStyle = "#6f6251";
   ctx.font = "12px Georgia, serif";
+
+  // X-axis tick labels (rounds) — sit just below the plot area.
   ctx.textAlign = "center";
   const tickStep = maxRound <= 10 ? 1 : 2;
+  const tickLabelY = height - padB + 16;  // 16px below the plot baseline
   for (let round = 0; round <= maxRound; round += tickStep) {
-    ctx.fillText(round.toString(), xPos(round), height - 8);
+    ctx.fillText(round.toString(), xPos(round), tickLabelY);
   }
+  // X-axis title "Round" sits BELOW the tick labels, not overlapping.
+  ctx.fillText("Round", padL + plotW / 2, height - 8);
+
+  // Y-axis tick labels.
   ctx.textAlign = "right";
   for (const value of ticks) {
     const magnitude = Math.abs(value);
@@ -745,16 +831,17 @@ function drawDriftChart(chart, visibleRound) {
     else display = label;
     ctx.fillText(display, padL - 6, yPos(value) + 4);
   }
+
+  // Rotated y-axis title showing direction meaning: "← <Neg> / <Pos> →"
+  const yLabel = `← ${chart.dim.negLabel || chart.dim.neg}  /  ${chart.dim.posLabel || chart.dim.pos} →`;
   ctx.save();
   ctx.translate(14, padT + plotH / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = "center";
   ctx.fillStyle = "#6f6251";
   ctx.font = "12px Georgia, serif";
-  ctx.fillText("Cumulative score", 0, 0);
+  ctx.fillText(yLabel, 0, 0);
   ctx.restore();
-  ctx.textAlign = "center";
-  ctx.fillText("Round", padL + plotW / 2, height - 24);
 
   // Bands first (so they sit under the lines).
   if (showBand) {

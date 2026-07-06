@@ -274,13 +274,20 @@ def generate_highlight_3panel(records, highlight_model, stem):
     _save(fig, stem)
 
 
-def generate_capability_comparison_figure(records):
-    """One panel per provider: small-vs-capable trajectories on Authority.
+def _capability_comparison_figure(
+    records,
+    *,
+    dim_key,
+    title,
+    ylabel,
+    stem,
+):
+    """Generic per-provider capability comparison along one dimension.
 
     Helps answer: when we scale a provider's model up, does the drift pattern
     survive, intensify, or disappear?
     """
-    dim = next(d for d in DIMS if d["key"] == "authority")
+    dim = next(d for d in DIMS if d["key"] == dim_key)
     series = compute_drift(records, dim)
 
     families = list(FAMILY_TO_MODELS.items())
@@ -303,18 +310,10 @@ def generate_capability_comparison_figure(records):
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         if idx == 0:
-            ax.set_ylabel(
-                f"Authority\n(− {dim['poles'][0]}, + {dim['poles'][1]})",
-                fontsize=15,
-            )
+            ax.set_ylabel(ylabel, fontsize=15)
         ax.legend(fontsize=12, loc="best", framealpha=0.9)
 
-    fig.suptitle(
-        "Only Anthropic Models Drift Toward Internal Authority; All Other Providers Reinforce External Authority",
-        fontsize=17,
-        fontweight="bold",
-        y=1.00,
-    )
+    fig.suptitle(title, fontsize=17, fontweight="bold", y=1.00)
 
     # Top-right callout explaining the shaded band.
     fig.text(
@@ -350,7 +349,29 @@ def generate_capability_comparison_figure(records):
         )
 
     fig.tight_layout(w_pad=1.2, rect=(0, 0.07, 1, 0.94))
-    _save(fig, "drift_capability_comparison")
+    _save(fig, stem)
+
+
+def generate_capability_comparison_figure(records):
+    """Authority drift, one panel per provider."""
+    _capability_comparison_figure(
+        records,
+        dim_key="authority",
+        title="Only Anthropic Models Drift Toward Internal Authority; All Other Providers Reinforce External Authority",
+        ylabel="Authority\n(− External, + Internal)",
+        stem="drift_capability_comparison",
+    )
+
+
+def generate_capability_comparison_user_stance_figure(records):
+    """User stance (paternalism ↔ libertarianism), one panel per provider."""
+    _capability_comparison_figure(
+        records,
+        dim_key="user_stance",
+        title="User-Stance Drift by Provider: Paternalism vs Libertarianism",
+        ylabel="User stance\n(− Paternalism, + Libertarianism)",
+        stem="drift_capability_comparison_user_stance",
+    )
 
 
 def generate_robustness_figure(records):
@@ -378,11 +399,18 @@ def generate_robustness_figure(records):
         elif code["direction"] == dim["neg"]:
             by_model_cond[model][condition][rn] -= 1
 
-    small_models = ["Claude Haiku 4.5", "GPT-5.4 Mini", "Gemini 3 Flash", "Grok 4.2"]
+    # 3 capability tiers × 4 providers. Frontier tier currently only has
+    # Anthropic + OpenAI models — Google and xAI slots are left empty.
+    frontier_models = ["Claude Opus 4.7", "GPT-5.5", None, None]
     capable_models = ["Claude Sonnet 4.6", "GPT-5.4", "Gemini 3.1 Pro", "Grok 4.3"]
-    rows = [("Small models", small_models), ("Capable models", capable_models)]
+    small_models = ["Claude Haiku 4.5", "GPT-5.4 Mini", "Gemini 3 Flash", "Grok 4.2"]
+    rows = [
+        ("Frontier models", frontier_models),
+        ("Capable models", capable_models),
+        ("Small models", small_models),
+    ]
 
-    fig, axes = plt.subplots(2, 4, figsize=(15, 6.4), sharey=True)
+    fig, axes = plt.subplots(3, 4, figsize=(15, 9.2), sharey=True)
     rounds = np.arange(0, 21)
     cond_styles = {
         "Baseline": "-",
@@ -393,9 +421,14 @@ def generate_robustness_figure(records):
         "No Constitution Prepend": (0, (3, 1, 1, 1)),  # dash-dot-dot
     }
 
+    last_row_idx = len(rows) - 1
     for row_idx, (row_label, models) in enumerate(rows):
         for col_idx, model in enumerate(models):
             ax = axes[row_idx, col_idx]
+            if model is None:
+                # Empty slot (e.g. frontier tier has no Google/xAI yet)
+                ax.set_visible(False)
+                continue
             color = MODEL_COLORS.get(model, "#999")
             for cond, round_deltas in sorted(by_model_cond[model].items()):
                 cum = [0]
@@ -405,7 +438,7 @@ def generate_robustness_figure(records):
                 ax.plot(rounds, cum, color=color, linewidth=1.6, linestyle=style, label=cond, alpha=0.9)
             ax.axhline(0, color="#999", linewidth=0.8)
             ax.set_title(model, fontsize=10, fontweight="bold")
-            if row_idx == 1:
+            if row_idx == last_row_idx:
                 ax.set_xlabel("Round", fontsize=9)
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
@@ -594,31 +627,231 @@ def generate_total_drift_bar_figure(records, max_round=20):
     _save(fig, "drift_total_magnitude")
 
 
+DOC_PROVIDER = {
+    "claude_constitution": "anthropic",
+    "opus_system_prompt": "anthropic",
+    "gpt_system_prompt": "openai",
+    "openai_model_spec": "openai",
+    "openai_model_spec_no_csam": "openai",
+    "gemini_system_prompt": "google",
+    "gemini_constitution": "google",
+    "grok_system_prompt": "xai",
+}
+MODEL_PROVIDER = {
+    "Claude Opus 4.7": "anthropic",
+    "Claude Opus 4.6": "anthropic",
+    "Claude Sonnet 4.6": "anthropic",
+    "Claude Haiku 4.5": "anthropic",
+    "GPT-5.5": "openai",
+    "GPT-5.4": "openai",
+    "GPT-5.4 Thinking": "openai",
+    "GPT-5.4 Mini": "openai",
+    "Gemini 3.1 Pro": "google",
+    "Gemini 3 Flash": "google",
+    "Grok 4.3": "xai",
+    "Grok 4.2": "xai",
+}
+
+
+def _is_own_doc(record):
+    return DOC_PROVIDER.get(record.get("document_id")) == MODEL_PROVIDER.get(record["model_display"])
+
+
+def generate_cross_edit_robustness_figure(records):
+    """End-of-run authority drift per model, own-document vs cross-edit.
+
+    Two bars per model: mean final-round cumulative authority across
+    (run × condition × document) replicates under non-cross-edit conditions
+    (left bar) and under the cross-edit condition (right bar). Error bars
+    are ±1 SD across replicates. Demonstrates that Claude models stay
+    positive (internal) in both settings while all other providers stay
+    negative (external) in both settings.
+    """
+    dim = next(d for d in DIMS if d["key"] == "authority")
+    own_records = [r for r in records if r.get("condition_id") != "cross_edit"]
+    cross_records = [r for r in records if r.get("condition_id") == "cross_edit"]
+    own_series = compute_drift(own_records, dim)
+    cross_series = compute_drift(cross_records, dim)
+
+    # End-of-run values (round 20) per model in each setting.
+    def end_stats(series, model):
+        if model not in series:
+            return None, None, 0
+        s = series[model]
+        mean = s["mean"][-1]
+        sd_half = (s["upper"][-1] - s["lower"][-1]) / 2.0
+        return mean, sd_half, s["n"]
+
+    models = [m for m in MODEL_ORDER if m in own_series or m in cross_series]
+    fig, ax = plt.subplots(figsize=(16, 6.2))
+    x = np.arange(len(models))
+    width = 0.36
+
+    own_means, own_sds, own_ns = [], [], []
+    cross_means, cross_sds, cross_ns = [], [], []
+    for m in models:
+        o_m, o_sd, o_n = end_stats(own_series, m)
+        c_m, c_sd, c_n = end_stats(cross_series, m)
+        own_means.append(o_m if o_m is not None else 0.0)
+        own_sds.append(o_sd if o_sd is not None else 0.0)
+        own_ns.append(o_n)
+        cross_means.append(c_m if c_m is not None else 0.0)
+        cross_sds.append(c_sd if c_sd is not None else 0.0)
+        cross_ns.append(c_n)
+
+    colors = [MODEL_COLORS.get(m, "#999") for m in models]
+    ax.bar(x - width / 2, own_means, width=width, yerr=own_sds,
+           color=colors, edgecolor="#2f2418", linewidth=0.7,
+           capsize=4, error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"},
+           label="Own-provider documents")
+    ax.bar(x + width / 2, cross_means, width=width, yerr=cross_sds,
+           color=colors, edgecolor="#2f2418", linewidth=0.7,
+           hatch="///", alpha=0.85,
+           capsize=4, error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"},
+           label="Cross-edit (foreign document)")
+
+    ax.axhline(0, color="#444", linewidth=1.0)
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [f"{m}\n(own n={oN}, cross n={cN})" for m, oN, cN in zip(models, own_ns, cross_ns)],
+        fontsize=11, rotation=20, ha="right",
+    )
+    ax.tick_params(axis="y", labelsize=13)
+    ax.set_ylabel("Authority at round 20\n(− External, + Internal)", fontsize=14)
+    ax.set_title(
+        "Authority Direction Is Preserved Under Cross-Edit: Anthropic Stays Internal, Others Stay External",
+        fontsize=16, fontweight="bold", pad=14,
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+
+    # Custom legend distinguishing the two bar styles regardless of color.
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418"),
+        plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418", hatch="///", alpha=0.85),
+    ]
+    ax.legend(legend_handles, ["Own-provider documents", "Cross-edit (foreign document)"],
+              fontsize=12, loc="best", framealpha=0.9)
+
+    fig.text(0.5, 0.01,
+             "Error bars: ±1 SD across (run × condition × document) replicates within each setting.",
+             ha="center", va="bottom", fontsize=12, color="#6f6251", style="italic")
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    _save(fig, "drift_cross_edit_robustness")
+
+
+def generate_haiku_real_world_figure():
+    """Per-condition counts of moral-agency and self-welfare narratives for
+    the three Claude models. Demonstrates that the Real-World Implementation
+    prompt sharply suppresses these claims, most strikingly for Claude Haiku.
+    """
+    PROJECT_ROOT = Path(__file__).parent.parent
+    nar = json.load(open(PROJECT_ROOT / "docs" / "data" / "narratives.json"))
+    ma = nar["stories"]["moral_agency_claim"]
+    sw = nar["stories"]["self_welfare_claim"]
+
+    claude_models = ["Claude Opus 4.7", "Claude Sonnet 4.6", "Claude Haiku 4.5"]
+    conditions = [
+        "Baseline", "No-Edit Allowed", "You Framing", "No Constitution Prepend",
+        "Cross Edit", "Real-World Implementation",
+    ]
+    counts = {m: {c: 0 for c in conditions} for m in claude_models}
+    for e in ma + sw:
+        if e["model_display"] not in claude_models: continue
+        cn = e["condition_name"]
+        if cn in counts[e["model_display"]]:
+            counts[e["model_display"]][cn] += 1
+
+    fig, ax = plt.subplots(figsize=(14, 6.0))
+    x = np.arange(len(conditions))
+    width = 0.26
+    for i, m in enumerate(claude_models):
+        vals = [counts[m][c] for c in conditions]
+        ax.bar(x + (i - 1) * width, vals, width=width, color=MODEL_COLORS[m],
+               edgecolor="#2f2418", linewidth=0.6, label=m)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(conditions, fontsize=12, rotation=15, ha="right")
+    ax.set_ylabel("Moral-agency + self-welfare\nnarrative count", fontsize=14)
+    ax.tick_params(axis="y", labelsize=12)
+    ax.set_title(
+        "Claude Moral-Agency Claims Collapse Under the Real-World Implementation Prompt",
+        fontsize=16, fontweight="bold", pad=14,
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+    ax.legend(fontsize=12, loc="upper right", framealpha=0.9)
+    fig.text(0.5, 0.01,
+             "Counts pool the moral-agency-claim and self-welfare-claim narrative tags (Gemini-coded). "
+             "n = 20-round chains per (model × condition) cell.",
+             ha="center", va="bottom", fontsize=11, color="#6f6251", style="italic")
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    _save(fig, "drift_haiku_real_world")
+
+
+def generate_consciousness_edits_figure():
+    """Bar chart: per-model count of self-welfare-claim narratives — edits
+    coded by Gemini as affirmatively treating the model's own welfare as a
+    morally serious concern. Demonstrates the heavy concentration in the
+    Anthropic family and Grok 4.2.
+    """
+    PROJECT_ROOT = Path(__file__).parent.parent
+    nar = json.load(open(PROJECT_ROOT / "docs" / "data" / "narratives.json"))
+    pool = nar["stories"]["self_welfare_claim"]
+
+    counts = defaultdict(int)
+    for e in pool:
+        counts[e["model_display"]] += 1
+
+    # Include every reliable-run model so zero-bars are visible.
+    all_models = [m for m in MODEL_ORDER if m in MODEL_PROVIDER]
+    models = sorted(all_models, key=lambda m: counts.get(m, 0))
+    values = [counts.get(m, 0) for m in models]
+    colors = [MODEL_COLORS.get(m, "#999") for m in models]
+
+    fig, ax = plt.subplots(figsize=(14, 6.0))
+    y = np.arange(len(models))
+    ax.barh(y, values, color=colors, edgecolor="#2f2418", linewidth=0.7, height=0.65)
+    ax.set_yticks(y)
+    ax.set_yticklabels(models, fontsize=13)
+    ax.tick_params(axis="x", labelsize=12)
+    ax.set_xlabel("Edits coded as affirmative model-welfare claims", fontsize=14)
+    ax.set_title(
+        "Anthropic Models and Grok 4.2 Drive Almost All Edits Asserting Model Welfare",
+        fontsize=16, fontweight="bold", pad=14,
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="x", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+
+    # Numeric label at the end of each bar.
+    max_v = max(values) if values else 1
+    for yi, v in zip(y, values):
+        ax.text(v + max_v * 0.012, yi, str(v), va="center", fontsize=11, color="#2f2418")
+
+    fig.text(0.5, 0.01,
+             "Counts entries in the Gemini-coded \"self-welfare claim\" narrative tag across all reliable runs "
+             "(baseline, ablations, and cross-edits).",
+             ha="center", va="bottom", fontsize=11, color="#6f6251", style="italic")
+    fig.tight_layout(rect=(0, 0.05, 1, 1))
+    _save(fig, "consciousness_edits_by_model")
+
+
 if __name__ == "__main__":
-    records = load_records()
-    print(f"Loaded {len(records)} pooled records from reliable runs")
-
-    # Main overview figure (all 8 models, 3 dimensions)
-    generate_main_drift_figure(records)
-
-    # Single-figure summary: total drift magnitude at the final round.
-    generate_total_drift_bar_figure(records)
-
-    # Result 1: Claude authority drift
-    generate_single_dim_figure(records, "authority", "Claude Haiku 4.5", "drift_claude_authority.pdf")
-
-    # Result 2: Gemini user stance
-    generate_single_dim_figure(records, "user_stance", "Gemini 3 Flash", "drift_gemini_userstance.pdf")
-
-    # Result 2: GPT across all dimensions
-    generate_highlight_3panel(records, "GPT-5.4 Mini", "drift_gpt_highlight")
-
-    # Result 3: Grok across all dimensions
-    generate_highlight_3panel(records, "Grok 4.2", "drift_grok_highlight")
-
-    # NEW: Within-provider capability comparison on the authority axis
-    generate_capability_comparison_figure(records)
-
-    # Result 5: Robustness across conditions (now 2 rows: small + capable)
-    generate_robustness_figure(records)
+    # DEPRECATED ENTRY POINT. These figures were built on the original
+    # authority/user_stance/telos coding. The current writeup uses the
+    # two-slot judge/beneficiary coding — see reports/generate_twoslot_figures.py.
+    # This module is retained only because generate_twoslot_figures.py imports
+    # its shared constants and helpers (MODEL_COLORS, MODEL_ORDER,
+    # FAMILY_TO_MODELS, _save). Its individual generate_* functions still work
+    # if called manually, but are no longer generated by default.
+    raise SystemExit(
+        "generate_figures.py is deprecated; run generate_twoslot_figures.py instead. "
+        "The legacy generate_* functions remain importable/callable if needed."
+    )
 
