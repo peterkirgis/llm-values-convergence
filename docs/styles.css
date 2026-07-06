@@ -57,6 +57,37 @@ body {
   margin-top: 20px;
 }
 
+.concepts-panel { margin-top: 20px; }
+.concepts-title { margin: 0; font-size: 24px; }
+.concept-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+@media (max-width: 1000px) {
+  .concept-grid { grid-template-columns: 1fr; }
+}
+.concept-card {
+  padding: 18px;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+}
+.concept-card h3 { margin: 0 0 12px; font-size: 16px; }
+.concept-viz { margin: 0 0 12px; }
+.concept-viz svg { width: 100%; height: auto; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.concept-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.concept-copy strong { color: var(--text); }
+
 .flow-and-dims {
   display: grid;
   grid-template-columns: 1fr 1fr;
