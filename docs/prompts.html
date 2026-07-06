@@ -7,9 +7,9 @@
   <style>
     :root {
       --bg: #f7f4ec;
-      --panel: rgba(255, 252, 247, 0.92);
-      --panel-strong: #fffaf2;
-      --line: #d9cdb9;
+      --panel: #ffffff;
+      --panel-strong: #f7f6f1;
+      --line: #d9d5c9;
       --text: #2f2418;
       --muted: #6f6251;
       --accent: #0b6e4f;
@@ -28,13 +28,14 @@
       margin: 0;
       font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
       color: var(--text);
-      background: radial-gradient(circle at top left, rgba(11,110,79,0.12), transparent 32%),
-                  linear-gradient(180deg, #fbf7ef 0%, #f2eadb 100%);
+      background: radial-gradient(circle at top left, rgba(11,110,79,0.10), transparent 38%),
+                  linear-gradient(180deg, #e2e8dc 0%, #d6ded0 100%);
+      background-attachment: fixed;
     }
     .shell { width: min(1100px, calc(100vw - 32px)); margin: 24px auto 56px; }
     a { color: var(--accent); }
     .hero {
-      background: var(--panel); border: 1px solid rgba(217,205,185,0.9);
+      background: var(--panel); border: 1px solid var(--line);
       border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow);
     }
     .eyebrow { margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; color: var(--accent); }
@@ -55,7 +56,7 @@
 
     .tab-panel {
       display: none;
-      background: var(--panel); border: 1px solid rgba(217,205,185,0.9);
+      background: var(--panel); border: 1px solid var(--line);
       border-radius: 0 var(--radius) var(--radius) var(--radius);
       padding: 28px; box-shadow: var(--shadow);
     }
@@ -66,23 +67,20 @@
     .message-stack { display: grid; gap: 16px; }
 
     .message {
-      border-radius: 14px; padding: 16px; border-left: 4px solid;
+      border-radius: 14px; padding: 16px; border: 1px solid var(--line);
     }
     .message-role {
       font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-      font-weight: 700; margin: 0 0 10px;
+      font-weight: 700; margin: 0 0 10px; color: var(--muted);
     }
     .message pre {
       margin: 0; white-space: pre-wrap; word-break: break-word;
       font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
       font-size: 12.5px; line-height: 1.55;
     }
-    .message.system { background: var(--sys-bg); border-color: var(--sys); }
-    .message.system .message-role { color: var(--sys); }
-    .message.user { background: var(--usr-bg); border-color: var(--usr); }
-    .message.user .message-role { color: var(--usr); }
-    .message.output { background: var(--out-bg); border-color: var(--out); }
-    .message.output .message-role { color: var(--out); }
+    .message.system { background: var(--sys-bg); }
+    .message.user { background: var(--usr-bg); }
+    .message.output { background: var(--out-bg); }
 
     .placeholder {
       display: inline-block; padding: 2px 8px; border-radius: 4px;
@@ -91,7 +89,8 @@
     }
     .note {
       margin-top: 14px; padding: 12px 14px; border-radius: 10px;
-      background: var(--accent-soft); font-size: 13px; line-height: 1.5; color: var(--text);
+      background: var(--panel-strong); border: 1px solid var(--line);
+      font-size: 13px; line-height: 1.5; color: var(--text);
     }
 
     .variant-selector {

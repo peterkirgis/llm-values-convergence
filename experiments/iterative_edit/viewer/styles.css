@@ -1,16 +1,16 @@
 :root {
   color-scheme: light;
-  --bg: #f7f4ec;
-  --panel: rgba(255, 252, 247, 0.92);
-  --panel-strong: #fffaf2;
-  --line: #d9cdb9;
+  --bg: #dde4d8;
+  --panel: #ffffff;
+  --panel-strong: #f7f6f1;
+  --line: #d9d5c9;
   --text: #2f2418;
   --muted: #6f6251;
   --accent: #0b6e4f;
   --accent-soft: #dff4eb;
   --danger: #983628;
   --danger-soft: #f8e2dc;
-  --shadow: 0 18px 40px rgba(81, 58, 30, 0.12);
+  --shadow: 0 18px 40px rgba(52, 66, 48, 0.14);
   --radius: 18px;
 }
 
@@ -23,8 +23,9 @@ body {
   font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(11, 110, 79, 0.12), transparent 32%),
-    linear-gradient(180deg, #fbf7ef 0%, #f2eadb 100%);
+    radial-gradient(circle at top left, rgba(11, 110, 79, 0.10), transparent 38%),
+    linear-gradient(180deg, #e2e8dc 0%, #d6ded0 100%);
+  background-attachment: fixed;
 }
 
 .page-shell {
@@ -38,7 +39,7 @@ body {
 .results-meta,
 .record-card {
   background: var(--panel);
-  border: 1px solid rgba(217, 205, 185, 0.9);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
