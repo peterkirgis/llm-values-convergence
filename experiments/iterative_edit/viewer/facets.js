@@ -360,6 +360,12 @@
           shows &plusmn;1 SD across each model's (run &times; document) replicates.</p></div>
       </div>`;
 
+      html += `<p class="facet-howto">How to read this: pick a facet above, then filter by condition or model.
+        The <strong>aggregate view</strong> (left) shows the share of each model's edits resolving toward each
+        pole; the <strong>cumulative drift view</strong> (right) shows how those resolutions accumulate across
+        the 20 editing rounds. Representative edits, with the coder's evidence and the verbatim cost clause,
+        are browsable below.</p>`;
+
       html += `<div class="condition-selector"><span>Direction:</span>
         <button class="cond-chip dir-chip active" data-control="dir" data-dir="">All directions</button>`;
       const chipDirs = info.centerDir ? [info.dirs[0], info.centerDir, info.dirs[1]] : info.dirs;
