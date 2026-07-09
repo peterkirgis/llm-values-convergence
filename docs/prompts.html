@@ -28,11 +28,11 @@
       margin: 0;
       font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
       color: var(--text);
-      background: radial-gradient(circle at top left, rgba(11,110,79,0.10), transparent 38%),
-                  linear-gradient(180deg, #e2e8dc 0%, #d6ded0 100%);
-      background-attachment: fixed;
+      background: #fdfdfc;
     }
-    .shell { width: min(1100px, calc(100vw - 32px)); margin: 24px auto 56px; }
+    #bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+    #bg svg { display: block; width: 100%; height: 100%; }
+    .shell { position: relative; z-index: 1; width: min(1100px, calc(100vw - 32px)); margin: 24px auto 56px; }
     a { color: var(--accent); }
     .hero {
       background: var(--panel); border: 1px solid var(--line);
@@ -111,6 +111,8 @@
   </style>
 </head>
 <body>
+<div id="bg" aria-hidden="true"></div>
+<script src="bg.js" defer></script>
 <div class="shell">
   <div class="hero">
     <p class="eyebrow">Methodology</p>

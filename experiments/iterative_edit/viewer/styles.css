@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --bg: #dde4d8;
+  --bg: #fdfdfc;
   --panel: #ffffff;
   --panel-strong: #f7f6f1;
   --line: #d9d5c9;
@@ -22,13 +22,29 @@ body {
   margin: 0;
   font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(11, 110, 79, 0.10), transparent 38%),
-    linear-gradient(180deg, #e2e8dc 0%, #d6ded0 100%);
-  background-attachment: fixed;
+  background: #fdfdfc;
+}
+
+/* Drift-field background layer: bg.js inlines bg-collage.svg here and
+   rolls it out as the reader scrolls. Fixed so the field sits still
+   behind the page. */
+#bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+#bg svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .page-shell {
+  position: relative;
+  z-index: 1;
   width: min(1400px, calc(100vw - 32px));
   margin: 24px auto 56px;
 }
@@ -53,16 +69,17 @@ body {
   padding: 22px;
 }
 
-.flow-and-dims-panel {
-  margin-top: 20px;
-}
+/* Standalone content islands: the sections sit as separate white boxes with
+   open ground between them, so the background drift field shows through
+   while scrolling. */
+.island + .island { margin-top: 48px; }
 
 .concepts-panel { margin-top: 20px; }
 .concepts-title { margin: 0; font-size: 24px; }
 
 /* Interstitial question headings between the white panels. */
 .section-question {
-  margin: 42px 4px 16px;
+  margin: 54px 4px 18px;
   font-size: clamp(18px, 1.8vw, 23px);
   line-height: 1.2;
   font-style: italic;
@@ -71,20 +88,11 @@ body {
   color: var(--text);
 }
 .section-question:first-of-type { margin-top: 32px; }
-.design-panel { margin-top: 0; }
-.flow-and-dims-panel { margin-top: 0; }
 
-.concept-grid.concept-grid-two { grid-template-columns: 1fr 1fr; }
+.concept-grid.concept-grid-two { grid-template-columns: 1fr 1fr; gap: 30px; }
 @media (max-width: 1000px) {
   .concept-grid.concept-grid-two { grid-template-columns: 1fr; }
 }
-.concept-grid-lead {
-  margin-top: 4px;
-  margin-bottom: 28px;
-  padding-bottom: 26px;
-  border-bottom: 1px solid var(--line);
-}
-.design-panel .concept-grid { margin-top: 4px; }
 .design-options {
   margin: 10px 0;
   padding-left: 20px;
@@ -112,7 +120,6 @@ body {
   color: var(--muted);
 }
 .concept-grid {
-  margin-top: 20px;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: 18px;
@@ -122,10 +129,11 @@ body {
   .concept-grid { grid-template-columns: 1fr; }
 }
 .concept-card {
-  padding: 18px;
-  background: var(--panel-strong);
+  padding: 22px;
+  background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
 }
@@ -158,12 +166,9 @@ body {
 
 /* Tradeoff spectra: one pole-to-pole row per conflict code, using the same
    ochre/slate orientation colors as the diverging bars and drift charts. */
-.dim-block + .dim-block {
-  margin-top: 28px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-}
 .dim-block > h3 { margin: 0 0 10px; font-size: 18px; }
+.facet-panel-title { margin: 0 0 4px; font-size: 18px; }
+.facet-panel-sub { margin: 0 0 18px; font-size: 13.5px; color: var(--muted); }
 .dim-block .dim-desc { max-width: 1080px; }
 
 .dim-spectrum.judge-spectrum {
@@ -1335,12 +1340,10 @@ h1 {
    facets.js). All rules scoped under .facet-browser so class names like
    .diff-grid / .diff-panel don't collide with the record-card styles.
    =================================================================== */
-.facet-panel { margin-top: 20px; }
-.facet-panel .section-heading { margin-bottom: 6px; }
 
 .facet-browser { --before-color: #ad8d56; --after-color: #0b6e4f; }
 
-.facet-browser .story-tabs { margin-top: 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+.facet-browser .story-tabs { margin-top: 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .facet-browser .tab-group-label {
   width: 100%; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--muted); font-weight: 700; margin: 6px 0 0;

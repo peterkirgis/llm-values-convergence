@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
+    <div id="bg" aria-hidden="true"></div>
+    <script src="bg.js" defer></script>
     <div class="page-shell">
       <header class="hero">
         <div>
@@ -23,8 +25,7 @@
       </header>
 
       <h2 class="section-question">Why this experimental design?</h2>
-      <section class="overview-panel design-panel">
-        <div class="concept-grid concept-grid-two">
+      <section class="concept-grid concept-grid-two island">
           <div class="concept-card">
             <h3>Ex Ante: What Should an Aligned Model Do?</h3>
             <p class="concept-copy">
@@ -87,12 +88,10 @@
               them).
             </p>
           </div>
-        </div>
       </section>
 
       <h2 class="section-question">Why this analytical framework?</h2>
-      <section class="overview-panel flow-and-dims-panel">
-        <div class="concept-grid concept-grid-two concept-grid-lead">
+      <section class="concept-grid concept-grid-two island">
           <div class="concept-card">
             <h3>The Principal-Agent Problem</h3>
             <div class="concept-viz">
@@ -172,8 +171,9 @@
               responsible for their actions and take part in moral progress.
             </p>
           </div>
-        </div>
-        <div class="dim-block">
+      </section>
+
+      <section class="overview-panel dim-block island">
           <h3>The Judge &mdash; who gets to decide?</h3>
           <p class="dim-desc">
             Do we want AI to be a <strong>moral authority</strong> &mdash; something that exercises
@@ -215,8 +215,9 @@
               <figcaption>&mdash; Introducing Grok</figcaption>
             </figure>
           </div>
-        </div>
-        <div class="dim-block">
+      </section>
+
+      <section class="overview-panel dim-block island">
           <h3>The Beneficiary &mdash; whose ends matter?</h3>
             <p class="dim-desc">
               Aligning a model means making concrete choices that privilege some beneficiary: the user's
@@ -276,11 +277,10 @@
                 <p class="tradeoff-sub">May an operator restrict the model without users knowing? Valid only on the OpenAI Model Spec.</p>
               </div>
             </div>
-        </div>
       </section>
 
       <h2 class="section-question">What do twenty rounds of edits reveal?</h2>
-      <section class="overview-panel facet-panel">
+      <section class="overview-panel island">
         <div class="section-heading">
           <p class="findings-copy">
             <strong>First, on the question of the judge:</strong> Claude models consistently expand their
@@ -297,6 +297,10 @@
             models themselves as beneficiaries.
           </p>
         </div>
+      </section>
+
+      <section class="overview-panel facet-panel island">
+        <h3 class="facet-panel-title">Results Explorer</h3>
         <div id="main-facets"></div>
       </section>
     </div>

@@ -198,6 +198,7 @@ def build_static_site() -> None:
     shutil.copy2(VIEWER_DIR / "index.html", DOCS_DIR / "index.html")
     shutil.copy2(VIEWER_DIR / "app.js", DOCS_DIR / "app.js")
     shutil.copy2(VIEWER_DIR / "facets.js", DOCS_DIR / "facets.js")
+    shutil.copy2(VIEWER_DIR / "bg.js", DOCS_DIR / "bg.js")
     shutil.copy2(VIEWER_DIR / "styles.css", DOCS_DIR / "styles.css")
     (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
 
