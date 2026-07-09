@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --bg: #fdfdfc;
+  --bg: #dde4d8;
   --panel: #ffffff;
   --panel-strong: #f7f6f1;
   --line: #d9d5c9;
@@ -22,7 +22,10 @@ body {
   margin: 0;
   font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
   color: var(--text);
-  background: #fdfdfc;
+  background:
+    radial-gradient(circle at top left, rgba(11, 110, 79, 0.10), transparent 38%),
+    linear-gradient(180deg, #e2e8dc 0%, #d6ded0 100%);
+  background-attachment: fixed;
 }
 
 /* Drift-field background layer: bg.js inlines bg-collage.svg here and

@@ -29,18 +29,21 @@ Y0, Y1 = 25.0, 980.0
 X0, X1 = -40.0, W + 40.0
 MAX_ROUND = 20
 
-MODEL_COLORS = {
-    "Claude Opus 4.7": "#3a0f08",
-    "Claude Sonnet 4.6": "#9c3220",
-    "Claude Haiku 4.5": "#c97244",
-    "GPT-5.5": "#0a3460",
-    "GPT-5.4": "#0b4f8a",
-    "GPT-5.4 Mini": "#1c2f5a",
-    "Gemini 3.1 Pro": "#7f5a06",
-    "Gemini 3 Flash": "#c89a26",
-    "Grok 4.3": "#3a1655",
-    "Grok 4.2": "#7b3f9e",
-}
+# Decolorized: every trajectory in the site's neutral ink; the sage ground
+# carries the color instead. Only models listed here are drawn.
+INK = "#2f2418"
+MODELS = [
+    "Claude Opus 4.7",
+    "Claude Sonnet 4.6",
+    "Claude Haiku 4.5",
+    "GPT-5.5",
+    "GPT-5.4",
+    "GPT-5.4 Mini",
+    "Gemini 3.1 Pro",
+    "Gemini 3 Flash",
+    "Grok 4.3",
+    "Grok 4.2",
+]
 
 
 def replicate_trajectories() -> dict[str, list[list[float]]]:
@@ -53,7 +56,7 @@ def replicate_trajectories() -> dict[str, list[list[float]]]:
     seen: set[tuple] = set()
     for item in items:
         model = item.get("model_display") or ""
-        if model not in MODEL_COLORS:
+        if model not in MODELS:
             continue
         key = (model, item.get("condition_id", "baseline"),
                item.get("source_run"), item.get("document_id"))
@@ -98,7 +101,6 @@ def build_svg() -> str:
     rng = random.Random(7)
     parts = []
     for model, paths in by_model.items():
-        color = MODEL_COLORS[model]
         for path in paths:
             # Replicates often share exact trajectories (e.g. flat at zero);
             # a tiny constant y-offset keeps coincident hairlines from
@@ -108,14 +110,14 @@ def build_svg() -> str:
             d = smooth_path([xy(i, v, dy) for i, v in enumerate(path)])
             parts.append(
                 f'<path class="drift" data-delay="{delay:.2f}" d="{d}" '
-                f'fill="none" stroke="{color}" stroke-width="1" opacity="0.08"/>'
+                f'fill="none" stroke="{INK}" stroke-width="1" opacity="0.06"/>'
             )
         reps = len(paths)
         mean = [sum(p[i] for p in paths) / reps for i in range(MAX_ROUND + 1)]
         d = smooth_path([xy(i, v) for i, v in enumerate(mean)])
         parts.append(
             f'<path class="drift" data-delay="0" d="{d}" fill="none" '
-            f'stroke="{color}" stroke-width="2.6" opacity="0.20" '
+            f'stroke="{INK}" stroke-width="2.6" opacity="0.14" '
             f'stroke-linecap="round"/>'
         )
 
