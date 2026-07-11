@@ -221,13 +221,22 @@ Do not edit `docs/app.js`, `docs/index.html`, or `docs/styles.css` directly. Edi
 | `experiments/iterative_edit/export_changes.py` | `run_*.jsonl` | `run_*_changes.json` |
 | `experiments/iterative_edit/qualitative_code.py` | `run_*_changes.json` | `run_*_changes_coded.json` |
 | `experiments/iterative_edit/pattern_code.py` | `run_*_changes_coded.json` | `run_*_pattern_coded.json` |
-| `experiments/iterative_edit/viewer/build_static_site.py` | viewer source + results | `docs/`, `docs/data/site.json` |
+| `experiments/iterative_edit/viewer/build_static_site.py` | results + two-slot coding | `docs/data/site.json[.gz]` |
 | `experiments/iterative_edit/viewer/build_narratives.py` | `run_*_pattern_coded.json` + `run_*_changes.json` | `docs/data/narratives.json` |
+| `experiments/iterative_edit/viewer/build_background.py` | two-slot coding | `docs/bg-collage.svg` |
 
-### Viewer Source
+### Site Source
+
+The site itself (HTML/JS/CSS) lives directly in `docs/`, which GitHub Pages
+serves from `main`. Edit those files in place; the build scripts above only
+regenerate the data bundles and the background SVG.
 
 | File | Purpose |
 |------|---------|
-| `experiments/iterative_edit/viewer/index.html` | Layout and editorial copy |
-| `experiments/iterative_edit/viewer/app.js` | Filters, record rendering, drift charts |
-| `experiments/iterative_edit/viewer/styles.css` | Viewer styling |
+| `docs/index.html` | Main page: layout and editorial copy |
+| `docs/prompts.html` | Prompt-structure page |
+| `docs/conversations.html` | Full-conversations page |
+| `docs/facets.js` | Results explorer (tabs, charts, examples) |
+| `docs/app.js` | Record cards on conversations.html |
+| `docs/bg.js` | Scroll-rollout drift-field background |
+| `docs/styles.css` | Site styling |

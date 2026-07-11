@@ -112,6 +112,34 @@ body {
 }
 .findings-copy:last-child { margin-bottom: 0; }
 
+/* Hover tips: any element with data-tip grows a small ink tooltip above it
+   (also on keyboard focus). Plain text only. */
+[data-tip] { position: relative; }
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: 320px;
+  background: var(--text);
+  color: #fbf9f4;
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  padding: 8px 11px;
+  border-radius: 7px;
+  box-shadow: 0 6px 18px rgba(47, 36, 24, 0.25);
+  z-index: 40;
+  pointer-events: none;
+}
+
 .facet-browser .facet-howto {
   margin: 0 0 20px;
   padding: 10px 14px;
@@ -1365,6 +1393,7 @@ h1 {
 .facet-browser .story-panel.active { display: block; }
 
 .facet-browser .story-description { color: var(--muted); line-height: 1.6; font-size: 15px; margin: 0 0 20px; }
+.facet-browser .story-takeaway { color: var(--text); line-height: 1.6; font-size: 15px; margin: 0 0 20px; }
 .facet-browser .story-description code {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 13px;
   background: #efe6d8; padding: 1px 5px; border-radius: 4px;

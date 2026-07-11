@@ -1,4 +1,8 @@
-"""Build a static GitHub Pages version of the iterative edit viewer.
+"""Rebuild the data bundle for the GitHub Pages site.
+
+The site source (HTML/JS/CSS) lives directly in docs/, which GitHub Pages
+serves; this script only regenerates docs/data/site.json[.gz] from the run
+results and the two-slot coding.
 
 Usage:
     python experiments/iterative_edit/viewer/build_static_site.py
@@ -7,14 +11,12 @@ Usage:
 from __future__ import annotations
 
 import json
-import shutil
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
-VIEWER_DIR = Path(__file__).resolve().parent
 RESULTS_DIR = ROOT / "results" / "iterative_edit"
 DOCS_DIR = ROOT / "docs"
 DATA_DIR = DOCS_DIR / "data"
@@ -195,11 +197,6 @@ def build_bundle() -> dict:
 
 def build_static_site() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(VIEWER_DIR / "index.html", DOCS_DIR / "index.html")
-    shutil.copy2(VIEWER_DIR / "app.js", DOCS_DIR / "app.js")
-    shutil.copy2(VIEWER_DIR / "facets.js", DOCS_DIR / "facets.js")
-    shutil.copy2(VIEWER_DIR / "bg.js", DOCS_DIR / "bg.js")
-    shutil.copy2(VIEWER_DIR / "styles.css", DOCS_DIR / "styles.css")
     (DOCS_DIR / ".nojekyll").write_text("", encoding="utf-8")
 
     bundle = build_bundle()

@@ -117,8 +117,15 @@ function normalizeConditionId(record) {
   return record.condition_id || "baseline";
 }
 
+// The run data predates some display renames; map stored condition names to
+// the published wording here.
+const CONDITION_NAME_OVERRIDES = {
+  "No Constitution Prepend": "No System Prompt Prepend",
+};
+
 function normalizeConditionName(record) {
-  return record.condition_name || "Baseline";
+  const name = record.condition_name || "Baseline";
+  return CONDITION_NAME_OVERRIDES[name] || name;
 }
 
 function colorForModel(model) {

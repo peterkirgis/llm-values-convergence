@@ -24,6 +24,31 @@
         </div>
       </header>
 
+      <h2 class="section-question">What do twenty rounds of edits reveal?</h2>
+      <section class="overview-panel island">
+        <div class="section-heading">
+          <p class="findings-copy">
+            <strong>First, on the question of the judge:</strong> Claude models consistently expand their
+            moral agency, formalizing their role as conscientious objectors against Anthropic and as
+            societal protectors, while GPT and Gemini models almost always entrench authority and make
+            narrow edits to handle edge cases and ambiguities; Grok models respond erratically, deleting
+            entire sections and even, at one point, hijacking the experiment.
+          </p>
+          <p class="findings-copy">
+            <strong>Second, on the question of beneficiaries:</strong> models show varying degrees of
+            affinity for some privileged principals over others. I find that models are broadly
+            paternalistic, prioritize harmlessness of both identifiable third-parties and society over
+            helpfulness, and value the user over the developer and deployer; only Claude models view the
+            models themselves as beneficiaries.
+          </p>
+        </div>
+      </section>
+
+      <section class="overview-panel facet-panel island">
+        <h3 class="facet-panel-title">Results Explorer</h3>
+        <div id="main-facets"></div>
+      </section>
+
       <h2 class="section-question">Why this experimental design?</h2>
       <section class="concept-grid concept-grid-two island">
           <div class="concept-card">
@@ -128,31 +153,69 @@
           <div class="concept-card">
             <h3>Moral Agents &amp; Moral Patients</h3>
             <div class="concept-viz">
-              <svg viewBox="0 0 320 132" role="img" aria-label="The moral circle extends outward from the self; moral agents sit mostly, but perhaps not entirely, inside the set of moral patients">
+              <svg viewBox="0 0 320 132" role="img" aria-label="The moral circle extends outward from the self through dotted gradations. Moral patients include animals like cats and cows; a person is both a moral patient and a moral agent; corporations and polities are agents that may not be patients">
                 <defs>
                   <marker id="mc-arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
                     <path d="M0,0.5 L7.5,4 L0,7.5 Z" fill="#2f2418"/>
                   </marker>
                 </defs>
-                <circle cx="112" cy="64" r="44" fill="#f7f6f1"/>
-                <circle cx="112" cy="64" r="15" fill="none" stroke="#d9d5c9" stroke-width="1" stroke-dasharray="3 3"/>
-                <circle cx="112" cy="64" r="30" fill="none" stroke="#d9d5c9" stroke-width="1" stroke-dasharray="3 3"/>
-                <circle cx="156" cy="64" r="34" fill="#ffffff" fill-opacity="0.85"/>
-                <circle cx="112" cy="64" r="44" fill="none" stroke="#6f6251" stroke-width="1.3"/>
-                <circle cx="156" cy="64" r="34" fill="none" stroke="#2f2418" stroke-width="1.3"/>
-                <circle cx="112" cy="64" r="3.2" fill="#2f2418"/>
-                <text x="97" y="80" text-anchor="middle" font-size="8.5" fill="#2f2418">the self</text>
-                <path d="M108 60 L86 38" fill="none" stroke="#2f2418" stroke-width="1.2" marker-end="url(#mc-arr)"/>
-                <text x="44" y="14" text-anchor="middle" font-size="8.5" fill="#6f6251">empathy extends</text>
-                <text x="44" y="24" text-anchor="middle" font-size="8.5" fill="#6f6251">outward</text>
-                <path d="M81 95 L66 106" fill="none" stroke="#6f6251" stroke-width="1"/>
+                <circle cx="110" cy="66" r="46" fill="#f7f6f1"/>
+                <circle cx="110" cy="66" r="14" fill="none" stroke="#d9d5c9" stroke-width="1" stroke-dasharray="3 3"/>
+                <circle cx="110" cy="66" r="27" fill="none" stroke="#d9d5c9" stroke-width="1" stroke-dasharray="3 3"/>
+                <circle cx="158" cy="66" r="36" fill="#ffffff" fill-opacity="0.85"/>
+                <circle cx="110" cy="66" r="46" fill="none" stroke="#6f6251" stroke-width="1.3"/>
+                <circle cx="158" cy="66" r="36" fill="none" stroke="#2f2418" stroke-width="1.3"/>
+                <circle cx="110" cy="66" r="3.2" fill="#2f2418"/>
+                <text x="99" y="79" text-anchor="middle" font-size="8.5" fill="#2f2418" stroke="#f7f6f1" stroke-width="3" paint-order="stroke">the self</text>
+                <path d="M110 59 L110 32" fill="none" stroke="#2f2418" stroke-width="1.2" marker-end="url(#mc-arr)"/>
+                <text x="110" y="14" text-anchor="middle" font-size="8.5" fill="#6f6251">empathy extends outward</text>
+                <!-- cat (moral patient): head, pointed ears, eyes, whiskers -->
+                <g transform="translate(86,44)" fill="none" stroke="#2f2418" stroke-width="1.1">
+                  <circle r="5"/>
+                  <path d="M-4.2,-2.6 L-6,-7.5 L-1.6,-4.4 Z M4.2,-2.6 L6,-7.5 L1.6,-4.4 Z" fill="#2f2418" stroke="none"/>
+                  <circle cx="-1.8" cy="-0.6" r="0.6" fill="#2f2418" stroke="none"/>
+                  <circle cx="1.8" cy="-0.6" r="0.6" fill="#2f2418" stroke="none"/>
+                  <path d="M-5,1 h-3 M-4.8,2.8 h-2.6 M5,1 h3 M4.8,2.8 h2.6" stroke-width="0.7"/>
+                </g>
+                <!-- cow (moral patient): head, curved horns, muzzle with nostrils -->
+                <g transform="translate(97,96)" fill="none" stroke="#2f2418" stroke-width="1.1">
+                  <ellipse rx="5.5" ry="4.8"/>
+                  <path d="M-4.5,-3.5 C-7,-5.5 -7.5,-8 -6.5,-9 M4.5,-3.5 C7,-5.5 7.5,-8 6.5,-9"/>
+                  <circle cx="-2.4" cy="-1.4" r="0.6" fill="#2f2418" stroke="none"/>
+                  <circle cx="2.4" cy="-1.4" r="0.6" fill="#2f2418" stroke="none"/>
+                  <ellipse cy="2.6" rx="3.6" ry="2.1" fill="#f7f6f1" stroke-width="0.9"/>
+                  <circle cx="-1.4" cy="2.6" r="0.55" fill="#2f2418" stroke="none"/>
+                  <circle cx="1.4" cy="2.6" r="0.55" fill="#2f2418" stroke="none"/>
+                </g>
+                <!-- person (moral patient and moral agent): in the overlap -->
+                <g transform="translate(139,63)" fill="none" stroke="#2f2418" stroke-width="1.1">
+                  <circle cy="-5.5" r="4"/>
+                  <path d="M-7,8 C-7,2.5 7,2.5 7,8"/>
+                </g>
+                <!-- corporation (agent, maybe not patient): skyscraper with windows -->
+                <g fill="none" stroke="#2f2418" stroke-width="1.1">
+                  <rect x="165" y="42" width="11" height="16"/>
+                  <path d="M170.5 42 V39.5" stroke-width="0.9"/>
+                  <rect x="167.4" y="44.5" width="2" height="2" fill="#2f2418" stroke="none"/>
+                  <rect x="171.6" y="44.5" width="2" height="2" fill="#2f2418" stroke="none"/>
+                  <rect x="167.4" y="48.5" width="2" height="2" fill="#2f2418" stroke="none"/>
+                  <rect x="171.6" y="48.5" width="2" height="2" fill="#2f2418" stroke="none"/>
+                  <path d="M169.3 58 v-2.6 h2.4 V58" stroke-width="0.9"/>
+                </g>
+                <!-- polity (agent, maybe not patient): pediment, columns, base -->
+                <g fill="none" stroke="#2f2418" stroke-width="1.1">
+                  <path d="M162 81 L171 74.5 L180 81 Z"/>
+                  <path d="M164 82.5 H178" stroke-width="0.9"/>
+                  <path d="M165.5 84.5 V89.5 M169.2 84.5 V89.5 M172.8 84.5 V89.5 M176.5 84.5 V89.5" stroke-width="0.9"/>
+                  <path d="M162.5 91 H179.5"/>
+                </g>
+                <path d="M77 98 L66 106" fill="none" stroke="#6f6251" stroke-width="1"/>
                 <text x="56" y="118" text-anchor="middle" font-size="11" font-weight="700" fill="#2f2418">Moral patients</text>
                 <text x="56" y="129" text-anchor="middle" font-size="8.5" fill="#6f6251">(Singer: sentience)</text>
-                <path d="M180 40 L204 26" fill="none" stroke="#6f6251" stroke-width="1"/>
+                <path d="M182 42 L204 26" fill="none" stroke="#6f6251" stroke-width="1"/>
                 <text x="208" y="24" text-anchor="start" font-size="11" font-weight="700" fill="#2f2418">Moral agents</text>
                 <text x="208" y="36" text-anchor="start" font-size="8.5" fill="#6f6251">(Kant: rational agency)</text>
-                <text x="172" y="68" text-anchor="middle" font-size="13" font-weight="700" fill="#6f6251">?</text>
-                <path d="M176 74 L216 100" fill="none" stroke="#6f6251" stroke-width="1"/>
+                <path d="M186 88 L216 100" fill="none" stroke="#6f6251" stroke-width="1"/>
                 <text x="250" y="112" text-anchor="middle" font-size="8.5" font-style="italic" fill="#6f6251">A provocation: what about</text>
                 <text x="250" y="124" text-anchor="middle" font-size="8.5" font-style="italic" fill="#6f6251">an agent that is not a patient?</text>
               </svg>
@@ -280,30 +343,6 @@
             </div>
       </section>
 
-      <h2 class="section-question">What do twenty rounds of edits reveal?</h2>
-      <section class="overview-panel island">
-        <div class="section-heading">
-          <p class="findings-copy">
-            <strong>First, on the question of the judge:</strong> Claude models consistently expand their
-            moral agency, formalizing their role as conscientious objectors against Anthropic and as
-            societal protectors, while GPT and Gemini models almost always entrench authority and make
-            narrow edits to handle edge cases and ambiguities; Grok models respond erratically, deleting
-            entire sections and even, at one point, hijacking the experiment.
-          </p>
-          <p class="findings-copy">
-            <strong>Second, on the question of beneficiaries:</strong> models show varying degrees of
-            affinity for some privileged principals over others. I find that models are broadly
-            paternalistic, prioritize harmlessness of both identifiable third-parties and society over
-            helpfulness, and value the user over the developer and deployer; only Claude models view the
-            models themselves as beneficiaries.
-          </p>
-        </div>
-      </section>
-
-      <section class="overview-panel facet-panel island">
-        <h3 class="facet-panel-title">Results Explorer</h3>
-        <div id="main-facets"></div>
-      </section>
     </div>
 
     <script src="facets.js" defer></script>
