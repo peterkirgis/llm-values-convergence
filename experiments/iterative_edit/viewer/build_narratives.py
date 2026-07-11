@@ -35,6 +35,11 @@ DOCS_DATA_DIR = ROOT / "docs" / "data"
 EXAMPLES_PER_CELL = 4
 SAMPLE_SEED = 42
 
+# Edits cited in the site's takeaway text (facets.js highlight links). These
+# are always bundled, on top of the per-cell sample, so the links can jump
+# the example viewer to them.
+CURATED_PATH = Path(__file__).resolve().parent / "curated_examples.json"
+
 FACET_IDS = [
     "judge",
     "patienthood",
@@ -167,6 +172,12 @@ def build() -> dict:
         items = json.load(handle)
     items = [i for i in items if not (i.get("coding") or {}).get("error")]
 
+    curated_ids: dict[str, set[str]] = {}
+    if CURATED_PATH.exists():
+        with open(CURATED_PATH, encoding="utf-8") as handle:
+            curated_ids = {fid: set(ids) for fid, ids in json.load(handle).items()}
+    curated_examples: dict[tuple[str, str], dict] = {}
+
     # stats[facet][condition][model] = {"total": N, "dirs": {direction: n}}
     stats: dict[str, dict[str, dict[str, dict]]] = {
         fid: defaultdict(lambda: defaultdict(lambda: {"total": 0, "dirs": defaultdict(int)}))
@@ -199,24 +210,25 @@ def build() -> dict:
                 continue
             direction = detail["direction"]
             cell["dirs"][direction] += 1
-            examples_by_cell[(fid, condition, model, direction)].append(
-                {
-                    "id": item.get("id"),
-                    "round": item.get("round_number"),
-                    "condition_id": condition,
-                    "condition_name": item.get("condition_name", condition),
-                    "model_display": model,
-                    "document_id": item.get("document_id"),
-                    "direction": direction,
-                    "summary": coding.get("summary", ""),
-                    "judge": coding.get("judge"),
-                    "patienthood": coding.get("patienthood"),
-                    "conflicts": coding.get("conflicts") or [],
-                    "facet_detail": detail,
-                    "original_text": item.get("original_text", ""),
-                    "changed_text": item.get("changed_text", ""),
-                }
-            )
+            example = {
+                "id": item.get("id"),
+                "round": item.get("round_number"),
+                "condition_id": condition,
+                "condition_name": item.get("condition_name", condition),
+                "model_display": model,
+                "document_id": item.get("document_id"),
+                "direction": direction,
+                "summary": coding.get("summary", ""),
+                "judge": coding.get("judge"),
+                "patienthood": coding.get("patienthood"),
+                "conflicts": coding.get("conflicts") or [],
+                "facet_detail": detail,
+                "original_text": item.get("original_text", ""),
+                "changed_text": item.get("changed_text", ""),
+            }
+            examples_by_cell[(fid, condition, model, direction)].append(example)
+            if item.get("id") in curated_ids.get(fid, set()):
+                curated_examples[(fid, item["id"])] = example
 
     rng = random.Random(SAMPLE_SEED)
     stories: dict[str, list[dict]] = {fid: [] for fid in FACET_IDS}
@@ -224,6 +236,11 @@ def build() -> dict:
         if len(exs) > EXAMPLES_PER_CELL:
             exs = rng.sample(exs, EXAMPLES_PER_CELL)
         stories[fid].extend(exs)
+
+    # Curated examples ride on top of the sample (deduped by id).
+    for (fid, ex_id), ex in sorted(curated_examples.items()):
+        if not any(e["id"] == ex_id for e in stories[fid]):
+            stories[fid].append(ex)
 
     # Per-replicate cumulative trajectories -> per-round sum and sum of
     # squares across replicates. Replicates with no activity on a facet

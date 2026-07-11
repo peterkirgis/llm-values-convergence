@@ -52,6 +52,17 @@ body {
   margin: 24px auto 56px;
 }
 
+/* Scroll reveal (classes applied by bg.js; without JS nothing is hidden). */
+.reveal-pending {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease-out, transform 0.55s ease-out;
+}
+.reveal-pending.revealed {
+  opacity: 1;
+  transform: none;
+}
+
 .hero,
 .overview-panel,
 .controls,
@@ -1393,7 +1404,40 @@ h1 {
 .facet-browser .story-panel.active { display: block; }
 
 .facet-browser .story-description { color: var(--muted); line-height: 1.6; font-size: 15px; margin: 0 0 20px; }
-.facet-browser .story-takeaway { color: var(--text); line-height: 1.6; font-size: 15px; margin: 0 0 20px; }
+.facet-browser .story-takeaway { color: var(--text); line-height: 1.6; font-size: 15px; margin: 0 0 14px; }
+.facet-browser .highlight-links { margin: 0 0 18px; }
+.facet-browser .highlight-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.facet-browser .highlight-link:hover { color: #084c37; }
+/* inline-block stops the underline propagating to the arrow */
+.facet-browser .highlight-arrow {
+  display: inline-block;
+  margin-left: 3px;
+  font-style: normal;
+  font-size: 12px;
+}
+
+/* Arrival pulse on the example viewer after a highlight-link jump. */
+@keyframes jump-flash {
+  0% { outline-color: rgba(11, 110, 79, 0.55); }
+  100% { outline-color: rgba(11, 110, 79, 0); }
+}
+.jump-flash {
+  outline: 2px solid rgba(11, 110, 79, 0);
+  outline-offset: 4px;
+  border-radius: 8px;
+  animation: jump-flash 1.6s ease-out;
+}
 .facet-browser .story-description code {
   font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 13px;
   background: #efe6d8; padding: 1px 5px; border-radius: 4px;

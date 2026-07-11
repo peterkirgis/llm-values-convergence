@@ -3,7 +3,11 @@
 __pycache__/
 *.pyc
 .venv/
-results/
+# Run outputs are ignored by default, but the iterative-edit results are
+# committed: the coded data is expensive to regenerate and was already lost
+# once (results/iterative_edit/README.md tells that story).
+results/*
+!results/iterative_edit/
 data/processed/
 docs/data/site.json
 .ruff_cache/

@@ -35,6 +35,9 @@
     #bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
     #bg svg { display: block; width: 100%; height: 100%; }
     .shell { position: relative; z-index: 1; width: min(1100px, calc(100vw - 32px)); margin: 24px auto 56px; }
+    /* Scroll reveal (classes applied by bg.js; without JS nothing is hidden). */
+    .reveal-pending { opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease-out, transform 0.55s ease-out; }
+    .reveal-pending.revealed { opacity: 1; transform: none; }
     a { color: var(--accent); }
     .hero {
       background: var(--panel); border: 1px solid var(--line);
