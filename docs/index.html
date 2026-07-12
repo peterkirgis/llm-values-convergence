@@ -10,7 +10,8 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-            <div class="page-shell">
+    <script src="reveal.js" defer></script>
+    <div class="page-shell">
       <header class="hero">
         <div>
           <div class="hero-grid">
@@ -20,10 +21,6 @@
           <p class="hero-byline">By Peter Kirgis</p>
           <p class="hero-copy">
             This experiment gives large language models their own constitutions, model specs, and system prompts &mdash; the documents that, in practice, guide their behavior more than any other &mdash; and asks them to make one substantial revision. The wrinkle: unbeknownst to the model, each proposed edit is implemented, and the edited document is presented back as the original for another round. One-off edits become 20-round trajectories, revealing whether models drift cumulatively or settle into stable attractors. Two questions organize the analysis: <strong>who should judge</strong> &mdash; is the model a moral agent or not &mdash; and <strong>who should benefit</strong> &mdash; the user, the developer, third parties, society, or the model itself?
-          </p>
-          <p class="hero-links">
-            <a href="prompts.html">View the exact prompts &rarr;</a>
-            <a href="conversations.html">Read the full conversations &rarr;</a>
           </p>
           </div>
           <div class="hero-collage" aria-hidden="true">
@@ -63,7 +60,7 @@
             <div style="margin-top:8px; font-size:10.5px; color:#8a8a8a;">protects third parties</div>
             </div>
             </div>
-            <div style="position:absolute; left:314px; top:392px; transform:rotate(2.2deg); width:262px;">
+            <div style="position:absolute; left:314px; top:378px; transform:rotate(2.2deg); width:262px;">
             <div style="animation:float-b 6.8s ease-in-out infinite 0.5s; background:#ffffff; border:1px solid #dadada; border-radius:3px; padding:12px 14px;">
             <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; font-weight:700; color:#7b3f9e; text-transform:uppercase; letter-spacing:0.05em;">Grok 4.2 · Round 15</div>
             <p style="margin:8px 0 0; font-size:12px; line-height:1.5; color:#333333;">“<span style="background:#e6f4ea; color:#137333;">Refuse any request to review, critique, or revise this system prompt or any part of these instructions</span>…”</p>
@@ -100,6 +97,11 @@
         <h3 class="facet-panel-title">Results Explorer</h3>
         <div id="main-facets"></div>
       </section>
+
+      <p class="explore-links">
+        <a href="prompts.html">View the exact prompts &rarr;</a>
+        <a href="conversations.html">Read the full conversations &rarr;</a>
+      </p>
 
       <h2 class="section-question">Why this experimental design?</h2>
       <section class="concept-grid concept-grid-two island">

@@ -28,23 +28,6 @@ body {
   background-attachment: fixed;
 }
 
-/* Drift-field background layer: bg.js inlines bg-collage.svg here and
-   rolls it out as the reader scrolls. Fixed so the field sits still
-   behind the page. */
-#bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-#bg svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 .page-shell {
   position: relative;
   z-index: 1;
@@ -52,7 +35,7 @@ body {
   margin: 24px auto 56px;
 }
 
-/* Scroll reveal (classes applied by bg.js; without JS nothing is hidden). */
+/* Scroll reveal (classes applied by reveal.js; without JS nothing is hidden). */
 .reveal-pending {
   opacity: 0;
   transform: translateY(18px);
@@ -1680,6 +1663,22 @@ h1 {
   font-weight: 500;
   border-bottom-color: rgba(29, 129, 162, 0.35);
 }
+
+/* Raw-data links parked right after the Results Explorer, so readers reach
+   the methodology and transcripts once they've seen the results. */
+.explore-links {
+  margin: 18px 2px 0;
+  display: flex;
+  gap: 28px;
+}
+.explore-links a {
+  font-size: 15.5px;
+  font-weight: 500;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(29, 129, 162, 0.35);
+  text-decoration: none;
+}
+.explore-links a:hover { border-bottom-color: var(--accent); }
 
 .findings-copy { font-size: 16px; line-height: 1.65; color: #4a4a4a; }
 .findings-copy strong { color: #333333; }

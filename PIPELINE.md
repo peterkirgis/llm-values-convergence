@@ -223,13 +223,12 @@ Do not edit `docs/app.js`, `docs/index.html`, or `docs/styles.css` directly. Edi
 | `experiments/iterative_edit/pattern_code.py` | `run_*_changes_coded.json` | `run_*_pattern_coded.json` |
 | `experiments/iterative_edit/viewer/build_static_site.py` | results + two-slot coding | `docs/data/site.json[.gz]` |
 | `experiments/iterative_edit/viewer/build_narratives.py` | `run_*_pattern_coded.json` + `run_*_changes.json` | `docs/data/narratives.json` |
-| `experiments/iterative_edit/viewer/build_background.py` | two-slot coding | `docs/bg-collage.svg` |
 
 ### Site Source
 
 The site itself (HTML/JS/CSS) lives directly in `docs/`, which GitHub Pages
 serves from `main`. Edit those files in place; the build scripts above only
-regenerate the data bundles and the background SVG.
+regenerate the data bundles.
 
 | File | Purpose |
 |------|---------|
@@ -238,5 +237,5 @@ regenerate the data bundles and the background SVG.
 | `docs/conversations.html` | Full-conversations page |
 | `docs/facets.js` | Results explorer (tabs, charts, examples) |
 | `docs/app.js` | Record cards on conversations.html |
-| `docs/bg.js` | Scroll-rollout drift-field background |
+| `docs/reveal.js` | Scroll-reveal for page blocks |
 | `docs/styles.css` | Site styling |
