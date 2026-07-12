@@ -1454,8 +1454,8 @@ h1 {
 .facet-browser .freq-seg { height: 100%; display: inline-block; transition: width 0.5s ease; }
 .facet-browser .freq-track.stacked { display: flex; }
 .facet-browser .freq-track.diverging .freq-seg { position: absolute; top: 0; }
-.facet-browser .freq-track.diverging .seg-neg { right: 50%; border-radius: 11px 0 0 11px; }
-.facet-browser .freq-track.diverging .seg-pos { left: 50%; border-radius: 0 11px 11px 0; }
+.facet-browser .freq-track.diverging .seg-neg { right: 50%; }
+.facet-browser .freq-track.diverging .seg-pos { left: 50%; }
 .facet-browser .freq-track.diverging .center-line { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(47,36,24,0.35); }
 .facet-browser .freq-value { font-size: 12px; font-weight: 700; line-height: 1.3; }
 
@@ -1768,7 +1768,11 @@ h1 {
 
 .facet-browser .freq-label { font-size: 13.5px; }
 .facet-browser .freq-value { font-size: 12px; font-weight: 500; color: #4a4a4a; }
-.facet-browser .freq-track { background: #ececec; border-radius: 3px; }
+.facet-browser .freq-track { background: #ececec; border-radius: 4px; }
+/* Fill tips get the same button-like rounding on their outward ends; the
+   inner edges stay square where they meet at the center line. */
+.facet-browser .freq-track.diverging .seg-neg { border-radius: 4px 0 0 4px; }
+.facet-browser .freq-track.diverging .seg-pos { border-radius: 0 4px 4px 0; }
 .facet-browser .freq-track.diverging .center-line { background: rgba(51, 51, 51, 0.35); }
 
 .facet-browser .facet-howto {

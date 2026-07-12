@@ -707,9 +707,9 @@
             const negLeft = ctrLeft - negW;
             const posLeft = 50 + ctrW / 2;
             track = `<div class="freq-track diverging">
-              <div class="freq-seg" style="left:${negLeft.toFixed(1)}%; width:${negW.toFixed(1)}%; background:${negDir.color}; border-radius:11px 0 0 11px"></div>
+              <div class="freq-seg" style="left:${negLeft.toFixed(1)}%; width:${negW.toFixed(1)}%; background:${negDir.color}"></div>
               <div class="freq-seg" style="left:${ctrLeft.toFixed(1)}%; width:${ctrW.toFixed(1)}%; background:${info.centerDir.color}"></div>
-              <div class="freq-seg" style="left:${posLeft.toFixed(1)}%; width:${posW.toFixed(1)}%; background:${posDir.color}; border-radius:0 11px 11px 0"></div>
+              <div class="freq-seg" style="left:${posLeft.toFixed(1)}%; width:${posW.toFixed(1)}%; background:${posDir.color}"></div>
               <div class="center-line"></div>
             </div>`;
             const eng = neg + ctr + pos;
