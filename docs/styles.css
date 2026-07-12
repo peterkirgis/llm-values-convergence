@@ -1598,21 +1598,65 @@ body { overflow-x: hidden; } /* 100vw includes the scrollbar gutter */
   margin: 0 auto;
 }
 
-/* Hero layout: text column left, edit-collage graphic right. */
+/* Hero layout: text column left, edit-quote carousel right. */
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 48px;
   align-items: center;
 }
-.hero-collage { justify-self: end; }
-@keyframes float-a { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-@keyframes float-b { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+.hero-carousel { justify-self: end; }
+/* JS-driven carousel: slides rest offstage right, .is-active holds the
+   stage, .is-left parks offstage left, so navigation can run either way. */
+.hero-carousel .carousel-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 64px;
+  transform: translateX(110%);
+  transition: transform 0.55s ease;
+}
+.hero-carousel .carousel-slide.is-active { transform: translateX(0); }
+.hero-carousel .carousel-slide.is-left { transform: translateX(-115%); }
+.hero-carousel .carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #6e6e6e;
+  font-family: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.hero-carousel .carousel-arrow:hover { border-color: var(--accent); color: var(--accent); }
+.hero-carousel .carousel-arrow.prev { left: 12px; }
+.hero-carousel .carousel-arrow.next { right: 12px; }
+.hero-carousel .carousel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: #d4d4d4;
+  cursor: pointer;
+}
+.hero-carousel .carousel-dot.is-active { background: #1d81a2; }
 @media (prefers-reduced-motion: reduce) {
-  .hero-collage * { animation: none !important; }
+  .hero-carousel .carousel-slide { transition: none; }
 }
 @media (max-width: 1180px) {
-  .hero-collage { display: none; }
+  .hero-carousel { display: none; }
 }
 
 .section-question {
