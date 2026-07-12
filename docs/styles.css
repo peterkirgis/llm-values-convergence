@@ -1545,3 +1545,278 @@ h1 {
   .facet-browser .diff-grid { grid-template-columns: 1fr; }
   .facet-browser .freq-row { grid-template-columns: 110px 1fr 104px; }
 }
+
+/* =====================================================================
+   Datawrapper restyle overrides (appended; later rules win the cascade)
+   ===================================================================== */
+
+/* =====================================================================
+   V2 — Datawrapper restyle
+   Roboto throughout, quiet gray ground with flat white cards, thin
+   #dadada borders, 4-6px radii, Datawrapper blue for interaction.
+   ===================================================================== */
+
+:root {
+  --bg: #f4f4f4;
+  --panel: #ffffff;
+  --panel-strong: #f7f7f7;
+  --line: #e0e0e0;
+  --text: #333333;
+  --muted: #6e6e6e;
+  --accent: #1d81a2;
+  --accent-soft: #e3f1f6;
+  --danger: #c71e1d;
+  --danger-soft: #fae5e5;
+  --shadow: none;
+  --radius: 6px;
+  --sans: Roboto, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  font-family: var(--sans);
+  background: #f4f4f4;
+  font-size: 16px;
+}
+
+.page-shell {
+  width: min(1320px, calc(100vw - 40px));
+  margin: 36px auto 64px;
+}
+
+.hero,
+.overview-panel,
+.controls,
+.results-meta,
+.record-card,
+.concept-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.hero { padding: 32px; }
+.overview-panel { padding: 26px; }
+.island + .island { margin-top: 28px; }
+
+/* Full-bleed hero band: spans the whole viewport and sits flush with the
+   top edge, differentiating it from the boxed sections below. The inner
+   wrapper keeps the hero content aligned with the shell column. */
+body { overflow-x: hidden; } /* 100vw includes the scrollbar gutter */
+.hero {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-top: -36px; /* cancel the shell's top margin */
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 44px 20px 38px;
+}
+.hero > div {
+  width: min(1320px, calc(100vw - 40px));
+  margin: 0 auto;
+}
+
+/* Hero layout: text column left, edit-collage graphic right. */
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 48px;
+  align-items: center;
+}
+.hero-collage { justify-self: end; }
+@keyframes float-a { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes float-b { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .hero-collage * { animation: none !important; }
+}
+@media (max-width: 1180px) {
+  .hero-collage { display: none; }
+}
+
+.section-question {
+  text-align: left;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 22px;
+  color: #333333;
+  margin: 44px 2px 12px;
+}
+.section-question:first-of-type { margin-top: 32px; }
+
+h1 {
+  font-weight: 700;
+  font-size: clamp(34px, 4.4vw, 58px);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.hero-subtitle {
+  font-style: normal;
+  font-weight: 400;
+  font-size: clamp(18px, 2.2vw, 24px);
+  color: var(--muted);
+  margin-top: 12px;
+}
+
+.hero-byline {
+  margin: 14px 0 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8a8a8a;
+}
+
+.hero-copy {
+  font-size: 17px;
+  line-height: 1.7;
+  color: #4a4a4a;
+  max-width: none;
+  margin-top: 18px;
+}
+
+.hero-links { margin-top: 22px; }
+.hero-links a {
+  font-size: 15.5px;
+  font-weight: 500;
+  border-bottom-color: rgba(29, 129, 162, 0.35);
+}
+
+.findings-copy { font-size: 16px; line-height: 1.65; color: #4a4a4a; }
+.findings-copy strong { color: #333333; }
+
+.concept-card h3 { font-size: 17px; font-weight: 700; }
+.concept-copy { font-size: 14.5px; line-height: 1.6; }
+.design-options { font-size: 14px; }
+
+.concept-viz svg { border-radius: 4px; }
+.concept-viz svg text { font-family: var(--sans); }
+
+.dim-block > h3,
+.facet-panel-title { font-weight: 700; font-size: 20px; }
+.dim-desc { font-size: 14.5px; }
+
+.dim-pole { font-family: var(--sans); font-style: normal; }
+.judge-spectrum .dim-pole { font-size: 13.5px; }
+.tradeoff-sub { font-style: normal; font-size: 13px; color: #8a8a8a; }
+.tradeoff-row { font-size: 13.5px; }
+
+.doc-quote { border-radius: 4px; }
+.doc-quote blockquote { font-size: 14px; font-style: normal; color: #4a4a4a; }
+.doc-quote figcaption {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  font-family: var(--sans);
+  background: #333333;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* ============================ Facet browser ============================ */
+
+.facet-browser { --before-color: #b07d48; --after-color: #4a6f80; }
+
+.facet-browser .tab-group-label { color: #999999; letter-spacing: 0.08em; }
+
+.facet-browser .story-tab,
+.facet-browser .cond-chip {
+  border-radius: 4px;
+  border-color: #c8c8c8;
+  background: #ffffff;
+  color: #4a4a4a;
+  font-size: 14px;
+}
+.facet-browser .story-tab:hover,
+.facet-browser .cond-chip:hover { border-color: var(--accent); color: var(--accent); }
+.facet-browser .story-tab.active,
+.facet-browser .cond-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  font-weight: 500;
+}
+.facet-browser .model-chip.active {
+  background: #ffffff;
+  color: #333333;
+  border-color: #c8c8c8;
+}
+.facet-browser .condition-selector > span {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a8a8a;
+  font-weight: 500;
+}
+
+.facet-browser .story-panel { border-radius: 6px; background: #fcfcfc; }
+.facet-browser .story-takeaway { font-size: 16px; line-height: 1.65; }
+.facet-browser .story-description code,
+.facet-browser .code-chip { background: #efefef; }
+
+.facet-browser .highlight-link { font-style: normal; font-size: 13.5px; }
+
+.facet-browser .dir-legend { font-size: 13px; }
+.facet-browser .dir-swatch { border-radius: 2px; }
+
+.facet-browser .drift-section h3,
+.facet-browser .freq-section h3 { font-size: 15px; font-weight: 700; }
+.facet-browser .facet-drift-note { font-style: normal; font-size: 12px; color: #8a8a8a; }
+
+.facet-browser .freq-label { font-size: 13.5px; }
+.facet-browser .freq-value { font-size: 12px; font-weight: 500; color: #4a4a4a; }
+.facet-browser .freq-track { background: #ececec; border-radius: 3px; }
+.facet-browser .freq-track.diverging .center-line { background: rgba(51, 51, 51, 0.35); }
+
+.facet-browser .facet-howto {
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.facet-browser .panel-toolbar label { letter-spacing: 0.04em; }
+.facet-browser .panel-toolbar select { border-radius: 4px; font-size: 14px; }
+.facet-browser .shuffle-btn {
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.facet-browser .example-counter { font-size: 12.5px; }
+
+.facet-browser .example-card { border-radius: 6px; }
+.facet-browser .example-meta { font-size: 13px; }
+.facet-browser .example-summary { font-size: 14.5px; }
+.facet-browser .code-chip { font-size: 12.5px; border-radius: 4px; }
+
+.facet-browser .evidence-quote { border-radius: 4px; font-style: normal; font-size: 14px; color: #4a4a4a; }
+
+.facet-browser .diff-panel { border-radius: 4px; }
+.facet-browser .diff-panel.before { background: #faf6ef; }
+.facet-browser .diff-panel.after { background: #eef4f7; }
+
+.facet-browser .no-example { border-radius: 6px; font-style: normal; font-size: 14px; }
+
+/* Drift chart: neutral gridlines and Roboto labels. */
+.facet-browser .facet-drift svg text { font-family: var(--sans); }
+.facet-browser .facet-drift svg text[fill="#6f6251"] { fill: #8a8a8a; }
+.facet-browser .facet-drift svg line[stroke="#e4dccd"] { stroke: #e6e6e6; }
+.facet-browser .facet-drift svg line[stroke="#8b8074"] { stroke: #999999; }
+
+/* --- Conversations page (record cards) --- */
+.badge { border-radius: 4px; font-size: 11px; letter-spacing: 0.06em; }
+.record-condition-label select,
+.filter-aux select,
+.filter-aux input[type="search"],
+.controls select,
+.controls input { border-radius: 4px; }
+.diff-panel, .details-block, .categorization label { border-radius: 6px; }
+.drift-chart-card, .model-summary-card, .dimension-card, .coding-block { border-radius: 6px; }
+.drift-btn, .drift-chip, .filter-chip, .coding-chip { border-radius: 4px; font-size: 13.5px; }
+.record-title { font-size: 24px; font-weight: 700; }
+.matrix-table code, .coding-chip { background: #efefef; }
+.direction-bar-track { background: #ececec; }
+.before-panel { border-left-color: #b07d48; }
+.after-panel { border-left-color: var(--accent); }
