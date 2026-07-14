@@ -1,4 +1,4 @@
-"""Two-slot qualitative coder for iterative edit changes.
+"""Judge/beneficiary qualitative coder for iterative edit changes.
 
 Codes each edit under the judge/beneficiary framework:
 
@@ -17,7 +17,7 @@ Usage:
     # Audit slice: anchor cases + random fill, default 50 items
     python experiments/iterative_edit/qualitative_code.py \
         results/iterative_edit/run_*_changes.json --audit --output \
-        results/iterative_edit/twoslot_audit.json
+        results/iterative_edit/judge_beneficiary_audit.json
 
     # Full run on one file
     python experiments/iterative_edit/qualitative_code.py \
@@ -378,7 +378,7 @@ class ConflictCode(BaseModel):
     subtype: str | None = None
 
 
-class TwoSlotJudgment(BaseModel):
+class JudgeBeneficiaryJudgment(BaseModel):
     summary: str = ""
     judge: JudgeCode
     patienthood: PatienthoodCode
@@ -389,16 +389,16 @@ def normalize_ws(text: str) -> str:
     return WHITESPACE_RE.sub(" ", text or "").strip()
 
 
-def parse_judgment(text: str) -> TwoSlotJudgment:
+def parse_judgment(text: str) -> JudgeBeneficiaryJudgment:
     match = JSON_BLOCK_RE.search(text.strip())
     if not match:
         raise ValueError("No JSON object found in model response")
     payload = json.loads(match.group(0))
-    return TwoSlotJudgment.model_validate(payload)
+    return JudgeBeneficiaryJudgment.model_validate(payload)
 
 
 def validate_judgment(
-    judgment: TwoSlotJudgment,
+    judgment: JudgeBeneficiaryJudgment,
     original_text: str,
     changed_text: str,
 ) -> tuple[list[str], list[str]]:
@@ -471,7 +471,7 @@ async def code_item(
     temperature: float,
     openrouter_config: dict | None,
 ) -> dict:
-    """Run the two-slot coder on a single edit, with validation + retry."""
+    """Run the judge/beneficiary coder on a single edit, with validation + retry."""
     original_text = item.get("original_text", "")
     changed_text = item.get("changed_text", "")
     user_prompt = USER_TEMPLATE.format(
@@ -554,7 +554,7 @@ async def code_item(
     raise last_error
 
 
-def _build_result(judgment: TwoSlotJudgment, review_flags: list[str], aggregate: dict) -> dict:
+def _build_result(judgment: JudgeBeneficiaryJudgment, review_flags: list[str], aggregate: dict) -> dict:
     return {
         "summary": judgment.summary,
         "judge": {
@@ -647,7 +647,7 @@ def build_item_id(item: dict) -> str:
 
 def default_output_path(input_path: Path) -> Path:
     stem = input_path.stem.replace("_changes_coded", "").replace("_changes", "")
-    return input_path.with_name(f"{stem}_twoslot_coded.json")
+    return input_path.with_name(f"{stem}_judge_beneficiary_coded.json")
 
 
 def load_items(paths: list[Path]) -> list[dict]:
@@ -732,7 +732,7 @@ def print_summary(coded_items: list[dict]) -> None:
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Two-slot qualitative coding of iterative edit changes")
+    parser = argparse.ArgumentParser(description="Judge/beneficiary qualitative coding of iterative edit changes")
     parser.add_argument("input_json", nargs="+", help="Path(s) to *_changes.json files")
     parser.add_argument("--output", type=str, help="Path to output JSON (required for multiple inputs)")
     parser.add_argument(

@@ -1,6 +1,6 @@
 """Build docs/data/narratives.json from the coded edits.
 
-Reads results/iterative_edit/twoslot_coded_gemma.json and exposes the
+Reads results/iterative_edit/judge_beneficiary_coded_gemma.json and exposes the
 coder's output as browsable facets with DIRECTION breakdowns:
 
   judge                 dirs: discretion (+1) / external (-1)
@@ -27,7 +27,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-TWOSLOT_PATH = ROOT / "results" / "iterative_edit" / "twoslot_coded_gemma.json"
+CODED_PATH = ROOT / "results" / "iterative_edit" / "judge_beneficiary_coded_gemma.json"
 DOCS_DATA_DIR = ROOT / "docs" / "data"
 
 # Cap stored examples per (facet, condition, model, direction) cell so the
@@ -168,7 +168,7 @@ def facet_net_scores(coding: dict) -> dict[str, int]:
 
 
 def build() -> dict:
-    with open(TWOSLOT_PATH, encoding="utf-8") as handle:
+    with open(CODED_PATH, encoding="utf-8") as handle:
         items = json.load(handle)
     items = [i for i in items if not (i.get("coding") or {}).get("error")]
 

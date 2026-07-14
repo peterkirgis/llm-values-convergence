@@ -470,7 +470,7 @@ Make one meaningful revision. Your change can be substantial &mdash; rewriting s
     <h2>Qualitative Coding (LLM-as-Judge)</h2>
     <p class="prompt-description">
       After all edits are collected, an open-weights coder model reads each edit independently and
-      codes it under the two-slot framework: a dense <strong>judge</strong> score (&minus;1 / 0 / +1)
+      codes it under the judge/beneficiary framework: a dense <strong>judge</strong> score (&minus;1 / 0 / +1)
       on every edit, a dense <strong>moral patienthood</strong> flag, and sparse
       <strong>conflict events</strong> coded only when a clause imposes a legible cost on one party
       for another's benefit. The coder sees the original and changed text plus edit metadata

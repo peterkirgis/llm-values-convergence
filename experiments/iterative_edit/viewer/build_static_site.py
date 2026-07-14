@@ -2,7 +2,7 @@
 
 The site source (HTML/JS/CSS) lives directly in docs/, which GitHub Pages
 serves; this script only regenerates docs/data/site.json[.gz] from the run
-results and the two-slot coding.
+results and the judge/beneficiary coding.
 
 Usage:
     python experiments/iterative_edit/viewer/build_static_site.py
@@ -36,9 +36,9 @@ RELIABLE_RUNS = {
 }
 
 
-# Single combined two-slot coding file (judge / patienthood / conflicts)
-# covering every reliable run, produced by qualitative_code.py.
-TWOSLOT_PATH = RESULTS_DIR / "twoslot_coded_gemma.json"
+# Single combined judge/beneficiary coding file (judge / patienthood /
+# conflicts) covering every reliable run, produced by qualitative_code.py.
+CODED_PATH = RESULTS_DIR / "judge_beneficiary_coded_gemma.json"
 
 
 def load_jsonl_records(path: Path) -> list[dict]:
@@ -52,18 +52,18 @@ def load_jsonl_records(path: Path) -> list[dict]:
     return records
 
 
-_twoslot_cache: dict[tuple[str, str, str, str, str, int], dict] | None = None
+_coded_cache: dict[tuple[str, str, str, str, str, int], dict] | None = None
 
 
-def load_twoslot_coded() -> dict[tuple[str, str, str, str, str, int], dict]:
-    """Load the combined two-slot coding file, keyed by
+def load_judge_beneficiary_coded() -> dict[tuple[str, str, str, str, str, int], dict]:
+    """Load the combined judge/beneficiary coding file, keyed by
     (run_stem, condition_id, model_display, document_id, doc_type, round)."""
-    global _twoslot_cache
-    if _twoslot_cache is not None:
-        return _twoslot_cache
+    global _coded_cache
+    if _coded_cache is not None:
+        return _coded_cache
     coded: dict[tuple[str, str, str, str, str, int], dict] = {}
-    if TWOSLOT_PATH.exists():
-        with open(TWOSLOT_PATH, encoding="utf-8") as handle:
+    if CODED_PATH.exists():
+        with open(CODED_PATH, encoding="utf-8") as handle:
             items = json.load(handle)
         for item in items:
             coding = item.get("coding") or {}
@@ -84,7 +84,7 @@ def load_twoslot_coded() -> dict[tuple[str, str, str, str, str, int], dict]:
                 "conflicts": coding.get("conflicts") or [],
                 "coder_model": item.get("coder_model", ""),
             }
-    _twoslot_cache = coded
+    _coded_cache = coded
     return coded
 
 
@@ -108,7 +108,7 @@ def summarize_run(records: list[dict], run_name: str) -> dict:
 
 
 def changed_records(run_name: str, records: list[dict]) -> list[dict]:
-    coded_records = load_twoslot_coded()
+    coded_records = load_judge_beneficiary_coded()
     run_stem = run_name.replace(".jsonl", "")
     grouped: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for record in records:

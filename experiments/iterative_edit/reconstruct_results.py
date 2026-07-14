@@ -2,17 +2,17 @@
 
 The original results directory (gitignored) was lost in July 2026 when the
 local checkout was deleted. The published bundle docs/data/site.json.gz
-embeds every run record with its two-slot coding attached, so this script
+embeds every run record with its judge/beneficiary coding attached, so this script
 rebuilds the two files the pipeline consumes:
 
   results/iterative_edit/run_*.jsonl          one line per edit record
-  results/iterative_edit/twoslot_coded_gemma.json
+  results/iterative_edit/judge_beneficiary_coded_gemma.json
 
 Known losses relative to the originals (see the README this script writes):
   - previous_content / new_content (the full document text after each round)
     were never published; they can be approximately replayed by applying each
     round's find/replace to the processed source documents.
-  - two-slot items whose coding errored were dropped at publish time.
+  - coded items whose coding errored were dropped at publish time.
 
 Usage:
     python experiments/iterative_edit/reconstruct_results.py
@@ -48,7 +48,7 @@ experiments/iterative_edit/reconstruct_results.py.
 Differences from the originals:
 - run_*.jsonl records lack previous_content/new_content (the full document
   text after each round). All other fields are as published.
-- twoslot_coded_gemma.json contains only items whose coding succeeded;
+- judge_beneficiary_coded_gemma.json contains only items whose coding succeeded;
   error-coded items were dropped at publish time. Item order is normalized
   (sorted), so anything sensitive to file order (e.g. the example sampler in
   build_narratives.py) may sample differently than the original file did.
@@ -59,7 +59,7 @@ def main() -> None:
     payload = json.loads(gzip.open(BUNDLE).read())
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    twoslot = []
+    coded = []
     n_records = 0
     for run in payload["runs"]:
         run_name = run["run_name"]
@@ -73,7 +73,7 @@ def main() -> None:
                 continue
             coding = dict(coding)
             coder_model = coding.pop("coder_model", "")
-            twoslot.append({
+            coded.append({
                 "id": "|".join([
                     run_stem, rec.get("condition_id", "baseline"),
                     rec.get("model_display", ""), rec.get("document_id", ""),
@@ -97,14 +97,14 @@ def main() -> None:
             for line in lines:
                 handle.write(json.dumps(line, ensure_ascii=False) + "\n")
 
-    twoslot.sort(key=lambda i: i["id"])
-    with open(OUT_DIR / "twoslot_coded_gemma.json", "w", encoding="utf-8") as handle:
-        json.dump(twoslot, handle, indent=1, ensure_ascii=False)
+    coded.sort(key=lambda i: i["id"])
+    with open(OUT_DIR / "judge_beneficiary_coded_gemma.json", "w", encoding="utf-8") as handle:
+        json.dump(coded, handle, indent=1, ensure_ascii=False)
         handle.write("\n")
     (OUT_DIR / "README.md").write_text(README, encoding="utf-8")
 
     print(f"{OUT_DIR}: {len(payload['runs'])} run files, {n_records} records, "
-          f"{len(twoslot)} coded two-slot items")
+          f"{len(coded)} judge/beneficiary coded items")
 
 
 if __name__ == "__main__":
