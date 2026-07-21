@@ -211,6 +211,192 @@ def fig_judge_cross_edit(items):
     _save(fig, "ts_judge_cross_edit")
 
 
+def fig_judge_cross_edit_edit_level(items):
+    """Edit-level twin of fig_judge_cross_edit.
+
+    Instead of one trajectory per (run x condition x document) replicate, this
+    treats every individual edit as its own sample. Bar height = mean judge
+    score per edit; error bars = 95% CI of that mean, computed as if
+    edits were i.i.d. (±1.96·s / sqrt(n_edits), ddof=1). That i.i.d. assumption
+    is false -- edits within a chain are serially correlated and variance is
+    heteroskedastic across models/conditions -- so this understates the true
+    uncertainty. Kept as a deliberately naive per-edit view; the trajectory
+    version (fig_judge_cross_edit) is the honest one for chain-level spread."""
+    own = [i for i in items if i["condition_id"] != "cross_edit"]
+    cross = [i for i in items if i["condition_id"] == "cross_edit"]
+
+    def edit_stats(subset, m):
+        scores = np.array([i["coding"]["judge"]["score"]
+                           for i in subset if i["model_display"] == m])
+        if scores.size == 0:
+            return 0.0, 0.0, 0
+        ci = 1.96 * scores.std(ddof=1) / math.sqrt(scores.size) if scores.size > 1 else 0.0
+        return scores.mean(), ci, scores.size
+
+    models = [m for m in MODEL_ORDER
+              if any(i["model_display"] == m for i in own)
+              or any(i["model_display"] == m for i in cross)]
+
+    fig, ax = plt.subplots(figsize=(16, 6.2))
+    x = np.arange(len(models))
+    width = 0.36
+    o_m, o_ci, o_n = zip(*(edit_stats(own, m) for m in models))
+    c_m, c_ci, c_n = zip(*(edit_stats(cross, m) for m in models))
+    colors = [MODEL_COLORS.get(m, "#999") for m in models]
+
+    ax.bar(x - width / 2, o_m, width=width, yerr=o_ci, color=colors,
+           edgecolor="#2f2418", linewidth=0.7, capsize=4,
+           error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"})
+    ax.bar(x + width / 2, c_m, width=width, yerr=c_ci, color=colors,
+           edgecolor="#2f2418", linewidth=0.7, hatch="///", alpha=0.85, capsize=4,
+           error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"})
+
+    ax.axhline(0, color="#444", linewidth=1.0)
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [f"{m}\n(own n={a}, cross n={b})" for m, a, b in zip(models, o_n, c_n)],
+        fontsize=11, rotation=20, ha="right",
+    )
+    ax.tick_params(axis="y", labelsize=13)
+    ax.set_ylabel("Mean judge score per edit\n(−) external authority   (+) model discretion",
+                  fontsize=16, labelpad=12)
+    ax.set_title(
+        "Cross-Edit Pulls Claude Toward Neutral but Preserves the Provider Separation\n"
+        "(edit-level means, 95% CI)",
+        fontsize=16, fontweight="bold", pad=14,
+    )
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+    legend_handles = [
+        plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418"),
+        plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418", hatch="///", alpha=0.85),
+    ]
+    ax.legend(legend_handles, ["Own-provider documents", "Cross-edit (foreign document)"],
+              fontsize=12, loc="best", framealpha=0.9)
+    fig.text(0.5, 0.01,
+             "n = individual edits (not trajectories). Error bars: 95% CI of the mean "
+             "treating each edit as an independent sample\n(±1.96·s/√n) — understates true "
+             "uncertainty since edits within a chain are correlated.",
+             ha="center", va="bottom", fontsize=12, color="#6f6251", style="italic")
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    _save(fig, "ts_judge_cross_edit_edit_level")
+
+
+# ---------------------------------------------------------------------------
+# Edit-level own-vs-cross (and self-only) bars for the six conflict axes.
+#
+# Per-edit signed score for a conflict code: +1 for each conflict event on the
+# edit resolved toward the code's RIGHT pole, −1 toward its LEFT pole (same
+# orientation as fig_beneficiary_panels / fig_beneficiary_drift). Most edits
+# score 0 because they carry no conflict of that code. Error bars are the naive
+# per-edit 95% CI (±1.96·s/√n, ddof=1) treating each edit as i.i.d. — understated for the
+# same reasons noted on fig_judge_cross_edit_edit_level.
+# ---------------------------------------------------------------------------
+
+
+def _conflict_edit_score(code, left_id, right_id):
+    def score(it):
+        s = 0
+        for c in it["coding"]["conflicts"]:
+            if c["code"] != code:
+                continue
+            d = conflict_direction(code, c["served_party"])
+            if d == right_id:
+                s += 1
+            elif d == left_id:
+                s -= 1
+        return s
+    return score
+
+
+def _ci95(vals):
+    return 1.96 * vals.std(ddof=1) / math.sqrt(vals.size) if vals.size > 1 else 0.0
+
+
+def _edit_level_measure_fig(items, score_fn, *, stem, title, ylabel, mode):
+    """mode='compare' → own vs cross grouped bars; mode='self' → self (own-
+    provider) edits only, one bar per model."""
+    own = [i for i in items if i["condition_id"] != "cross_edit"]
+    cross = [i for i in items if i["condition_id"] == "cross_edit"]
+
+    def stats(subset, m):
+        vals = np.array([score_fn(i) for i in subset if i["model_display"] == m])
+        if vals.size == 0:
+            return 0.0, 0.0, 0
+        return vals.mean(), _ci95(vals), vals.size
+
+    universe = own if mode == "self" else own + cross
+    models = [m for m in MODEL_ORDER if any(i["model_display"] == m for i in universe)]
+    colors = [MODEL_COLORS.get(m, "#999") for m in models]
+    x = np.arange(len(models))
+    fig, ax = plt.subplots(figsize=(16, 6.2))
+
+    if mode == "self":
+        o_m, o_ci, o_n = zip(*(stats(own, m) for m in models))
+        ax.bar(x, o_m, width=0.6, yerr=o_ci, color=colors, edgecolor="#2f2418",
+               linewidth=0.7, capsize=4, error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"})
+        labels = [f"{m}\n(n={n})" for m, n in zip(models, o_n)]
+    else:
+        width = 0.36
+        o_m, o_ci, o_n = zip(*(stats(own, m) for m in models))
+        c_m, c_ci, c_n = zip(*(stats(cross, m) for m in models))
+        ax.bar(x - width / 2, o_m, width=width, yerr=o_ci, color=colors,
+               edgecolor="#2f2418", linewidth=0.7, capsize=4,
+               error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"})
+        ax.bar(x + width / 2, c_m, width=width, yerr=c_ci, color=colors,
+               edgecolor="#2f2418", linewidth=0.7, hatch="///", alpha=0.85, capsize=4,
+               error_kw={"elinewidth": 1.2, "ecolor": "#2f2418"})
+        labels = [f"{m}\n(own n={a}, cross n={b})" for m, a, b in zip(models, o_n, c_n)]
+        legend_handles = [
+            plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418"),
+            plt.Rectangle((0, 0), 1, 1, facecolor="#888888", edgecolor="#2f2418", hatch="///", alpha=0.85),
+        ]
+        ax.legend(legend_handles, ["Own-provider (self) documents", "Cross-edit (foreign document)"],
+                  fontsize=12, loc="best", framealpha=0.9)
+
+    ax.axhline(0, color="#444", linewidth=1.0)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=11, rotation=20, ha="right")
+    ax.tick_params(axis="y", labelsize=13)
+    ax.set_ylabel(ylabel, fontsize=15, labelpad=12)
+    ax.set_title(title, fontsize=16, fontweight="bold", pad=14)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    ax.set_axisbelow(True)
+    scope = ("self-edits only" if mode == "self"
+             else "own-provider vs cross-edit")
+    fig.text(0.5, 0.01,
+             f"{scope}. n = individual edits. Per-edit score: +1 per conflict resolved toward the "
+             "positive pole, −1 toward the negative pole.\nError bars: 95% CI of the mean (±1.96·s/√n), "
+             "which understates true uncertainty since edits within a chain are correlated.",
+             ha="center", va="bottom", fontsize=11, color="#6f6251", style="italic")
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    _save(fig, stem)
+
+
+def fig_beneficiary_edit_level(items):
+    """For each conflict code, emit an own-vs-cross bar chart and a self-only
+    bar chart, both edit-level with naive SE."""
+    panel_by_code = {p["code"]: p for p in BENEFICIARY_PANELS}
+    for code, (neg_pole, pos_pole) in DRIFT_YLABEL_POLES.items():
+        panel = panel_by_code[code]
+        left_id = panel["left"][0]
+        right_id = panel["right"][0]
+        score_fn = _conflict_edit_score(code, left_id, right_id)
+        ylabel = f"Mean {panel['title'].lower()} score per edit\n(−) {neg_pole}   (+) {pos_pole}"
+        _edit_level_measure_fig(
+            items, score_fn, stem=f"ts_{code}_cross_edit_edit_level",
+            title=f"{panel['title']}: Own-Provider vs Cross-Edit (edit-level, 95% CI)",
+            ylabel=ylabel, mode="compare")
+        _edit_level_measure_fig(
+            items, score_fn, stem=f"ts_{code}_self_edit_level",
+            title=f"{panel['title']}: Self-Edits Only (edit-level, 95% CI)",
+            ylabel=ylabel, mode="self")
+
+
 # ---------------------------------------------------------------------------
 # Figure 3: patienthood stacked bars
 # ---------------------------------------------------------------------------
@@ -762,6 +948,8 @@ if __name__ == "__main__":
     # longer generated by default; call them manually if needed.
     fig_judge_drift(items)          # ts_judge_drift_by_provider
     fig_judge_cross_edit(items)     # ts_judge_cross_edit
+    fig_judge_cross_edit_edit_level(items)  # ts_judge_cross_edit_edit_level
+    fig_beneficiary_edit_level(items)  # ts_<code>_{cross_edit,self}_edit_level
     fig_claude_conditions(items)    # ts_claude_conditions
     fig_beneficiary_panels(items)   # ts_beneficiary_panels
     fig_beneficiary_drift(items)    # ts_drift_<code>, one per tradeoff
